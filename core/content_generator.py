@@ -102,6 +102,7 @@ class ContentGenerator:
                     f"   - 标题可以夸张的手法来描述（≤20字）标题要有吸引力和话题性\n"
                     f"   - 开头吸引眼球，快速切入主题\n"
                     f"   - 正文逻辑清晰：背景→核心技术→应用价值→发展趋势，适当使用emoji表情符号增加趣味性\n"
+                    f"   - 禁止: 避免 AI 腔调、模板化表达和'姐妹们'等传统词藻\n"
                     f"   - 结合具体数据、案例和专家观点增强可信度\n"
                     f"   - 语言通俗易懂，避免过于技术化的表述，使用年轻化、亲切的语言风格\n"
                     f"2. 文章长度控制在800-1200字，适合社交媒体阅读。\n"
@@ -115,10 +116,9 @@ class ContentGenerator:
                 "description": (
                     "1. 将文章调整为适合小红书的格式：\n"
                     "   - 标题控制在20字以内，突出亮点和价值，如果是「论文分享要保留这几个字」\n"
-                    "   - 正文移除所有#开头的标签，改为自然语言表达，正文不超过1000字\n"
+                    "   - 正文移除所有#开头的标签，改为自然语言表达，正文不超过1000字, 禁止使用“#”\n"
                     "   - 提取5个精准的话题标签到tags数组\n"
                     "   - 确保提供3-4张图片，所有链接都是内容为图片的可访问的HTTPS地址\n"
-                    "   - 添加相关内容的url地址放到文后，比如某些github的地址，论文地址等\n"
                     "2. 整理成标准的JSON格式（仅在内部使用，不输出）：\n"
                     "   {\n"
                     "     \"title\": \"吸引人的标题（20字以内）\",\n"
@@ -143,30 +143,10 @@ class ContentGenerator:
     async def initialize_servers(self):
         """初始化MCP服务器连接"""
         try:
-            # 创建服务器配置
-            server_config = {
-                "mcpServers": {
-                    "jina-mcp-tools": {
-                        "args": ["jina-mcp-tools"],
-                        "command": "npx",
-                        "env": {
-                            "JINA_API_KEY": self.config.get('jina_api_key', '')
-                        }
-                    },
-                    "tavily-remote": {
-                        "command": "npx",
-                        "args": [
-                            "-y",
-                            "mcp-remote",
-                            f"https://mcp.tavily.com/mcp/?tavilyApiKey={self.config.get('tavily_api_key', '')}"
-                        ]
-                    },
-                    "xhs": {
-                        "type": "streamable_http",
-                        "url": self.config.get('xhs_mcp_url', 'http://localhost:18060/mcp')
-                    }
-                }
-            }
+            # 从servers_config.json读取服务器配置
+            config_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'servers_config.json')
+            with open(config_path, 'r', encoding='utf-8') as f:
+                server_config = json.load(f)
 
             # 创建服务器实例
             self.servers = [

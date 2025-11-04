@@ -223,6 +223,14 @@ function updateProgress(taskIdOrPercent, percentOrText, textOrUndefined) {
             if (statusEl) {
                 statusEl.textContent = statusIcon;
             }
+
+            // 如果变成错误状态，确保重试按钮显示
+            if (status === 'error') {
+                const retryDiv = card.querySelector('.task-card-retry');
+                if (retryDiv) {
+                    retryDiv.style.display = 'block';
+                }
+            }
         }
     }
 }
@@ -259,10 +267,23 @@ function moveCurrentToHistory() {
         const card = document.createElement('div');
         card.id = cardId;
         card.className = `task-card ${status}`;
+        card.dataset.topic = currentTopic; // 保存主题用于重试
+
+        // 调试日志
+        console.log('创建任务卡片:', {
+            cardId,
+            topic: currentTopic,
+            status,
+            className: card.className,
+            progress: currentProgress,
+            text: currentText
+        });
+
         card.innerHTML = `
             <div class="task-card-header">
                 <div class="task-card-topic" title="${currentTopic}">${currentTopic}</div>
                 <div class="task-card-status">${statusIcon}</div>
+                <div class="task-card-delete" onclick="deleteTask('${cardId}')" title="删除任务">×</div>
             </div>
             <div class="task-card-progress">
                 <div class="task-card-progress-bar">
@@ -270,10 +291,21 @@ function moveCurrentToHistory() {
                 </div>
                 <div class="task-card-progress-text">${currentText}</div>
             </div>
+            <div class="task-card-retry">
+                <button class="btn-retry" onclick="retryTask('${cardId}')">🔄 重试</button>
+            </div>
         `;
 
         // 插入到最前面
         historyContainer.insertBefore(card, historyContainer.firstChild);
+
+        // 如果是错误状态，确保重试按钮显示
+        if (status === 'error') {
+            const retryDiv = card.querySelector('.task-card-retry');
+            if (retryDiv) {
+                retryDiv.style.display = 'block';
+            }
+        }
 
         // 建立任务ID到卡片ID的映射
         taskCardMap[currentTaskId] = cardId;
@@ -294,6 +326,74 @@ async function startGenerate() {
         return;
     }
 
+    // 执行生成任务
+    await executeGenerate(topic);
+}
+
+// 删除任务
+function deleteTask(cardId) {
+    const card = document.getElementById(cardId);
+    if (!card) {
+        showToast('任务卡片不存在', 'error');
+        return;
+    }
+
+    // 添加淡出动画
+    card.style.opacity = '0';
+    card.style.transform = 'translateX(-20px)';
+
+    // 延迟删除以显示动画
+    setTimeout(() => {
+        card.remove();
+
+        // 从映射中删除
+        for (let taskId in taskCardMap) {
+            if (taskCardMap[taskId] === cardId) {
+                delete taskCardMap[taskId];
+                break;
+            }
+        }
+
+        // 如果没有历史卡片了，隐藏历史面板
+        const historyContainer = document.getElementById('task-history');
+        if (historyContainer && historyContainer.children.length === 0) {
+            const historyPanel = document.getElementById('history-panel');
+            if (historyPanel) {
+                historyPanel.style.display = 'none';
+            }
+        }
+
+        showToast('任务已删除', 'info');
+    }, 300);
+}
+
+// 重试任务
+async function retryTask(cardId) {
+    const card = document.getElementById(cardId);
+    if (!card) {
+        showToast('任务卡片不存在', 'error');
+        return;
+    }
+
+    // 获取保存的主题
+    const topic = card.dataset.topic;
+    if (!topic) {
+        showToast('未找到任务主题', 'error');
+        return;
+    }
+
+    // 将当前任务移到历史（如果有的话）
+    moveCurrentToHistory();
+
+    // 移除旧的卡片
+    card.remove();
+
+    // 执行生成任务
+    await executeGenerate(topic);
+}
+
+// 执行生成任务的核心逻辑
+async function executeGenerate(topic) {
     // 创建新任务ID
     const taskId = 'task-' + Date.now();
 
@@ -410,6 +510,203 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// 从服务器加载历史记录
+async function loadTaskHistory(startDate = null, endDate = null, status = null) {
+    try {
+        let url = `${API_BASE}/history?limit=50`;
+        if (startDate) url += `&start_date=${startDate}`;
+        if (endDate) url += `&end_date=${endDate}`;
+        if (status) url += `&status=${status}`;
+
+        const response = await fetch(url);
+        const data = await response.json();
+
+        const historyPanel = document.getElementById('history-panel');
+        const historyContainer = document.getElementById('task-history');
+
+        // 清空现有历史
+        historyContainer.innerHTML = '';
+
+        if (data.success && data.data && data.data.length > 0) {
+            // 显示历史面板
+            historyPanel.style.display = 'block';
+
+            // 渲染历史记录
+            data.data.forEach(task => {
+                createTaskCard(task);
+            });
+
+            console.log(`加载了 ${data.data.length} 条历史记录`);
+        } else if (data.success && (!data.data || data.data.length === 0)) {
+            // 没有数据，显示提示信息
+            historyPanel.style.display = 'block';
+            historyContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: #909399;">暂无任务记录</div>';
+        } else {
+            // 请求失败
+            showToast('加载历史记录失败', 'error');
+        }
+    } catch (error) {
+        console.error('加载历史记录失败:', error);
+        showToast('加载历史记录失败: ' + error.message, 'error');
+    }
+}
+
+// 创建任务卡片
+function createTaskCard(task) {
+    const historyContainer = document.getElementById('task-history');
+    if (!historyContainer) return;
+
+    const cardId = task.id || 'task-card-' + Date.now();
+
+    // 判断状态
+    let status = task.status || 'running';
+    let statusIcon = '⏳';
+    if (status === 'success') {
+        statusIcon = '✅';
+    } else if (status === 'error') {
+        statusIcon = '❌';
+    }
+
+    const card = document.createElement('div');
+    card.id = cardId;
+    card.className = `task-card ${status}`;
+    card.dataset.topic = task.topic;
+    card.dataset.taskId = task.id;
+
+    // 格式化日期
+    let displayTime = '';
+    if (task.created_at) {
+        const date = new Date(task.created_at);
+        displayTime = date.toLocaleString('zh-CN');
+    }
+
+    // 转义HTML特殊字符
+    const escapeTopic = task.topic.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+    card.innerHTML = `
+        <div class="task-card-header">
+            <div class="task-card-topic" title="${escapeTopic}">${escapeTopic}</div>
+            <div class="task-card-status">${statusIcon}</div>
+            <div class="task-card-delete" onclick="deleteTaskFromServer('${task.id}')" title="删除任务">×</div>
+        </div>
+        <div class="task-card-progress">
+            <div class="task-card-progress-bar">
+                <div class="task-card-progress-value" style="width: ${task.progress || 0}%"></div>
+            </div>
+            <div class="task-card-progress-text">${task.message || ''}</div>
+            ${displayTime ? `<div class="task-card-time">${displayTime}</div>` : ''}
+        </div>
+        <div class="task-card-retry">
+            <button class="btn-retry">🔄 重试</button>
+        </div>
+    `;
+
+    historyContainer.appendChild(card);
+
+    // 添加重试按钮事件监听器（避免onclick中的字符串转义问题）
+    const retryBtn = card.querySelector('.btn-retry');
+    if (retryBtn) {
+        retryBtn.addEventListener('click', () => {
+            retryTaskFromHistory(task.id, task.topic);
+        });
+    }
+
+    // 如果是错误状态，确保重试按钮显示
+    if (status === 'error') {
+        const retryDiv = card.querySelector('.task-card-retry');
+        if (retryDiv) {
+            retryDiv.style.display = 'block';
+        }
+    }
+}
+
+// 从服务器删除任务
+async function deleteTaskFromServer(taskId) {
+    try {
+        const response = await fetch(`${API_BASE}/history/${taskId}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // 从DOM中移除
+            const card = document.querySelector(`[data-task-id="${taskId}"]`);
+            if (card) {
+                card.style.opacity = '0';
+                card.style.transform = 'translateX(-20px)';
+
+                setTimeout(() => {
+                    card.remove();
+
+                    // 如果没有历史卡片了，隐藏历史面板
+                    const historyContainer = document.getElementById('task-history');
+                    if (historyContainer && historyContainer.children.length === 0) {
+                        const historyPanel = document.getElementById('history-panel');
+                        if (historyPanel) {
+                            historyPanel.style.display = 'none';
+                        }
+                    }
+                }, 300);
+            }
+
+            showToast('任务已删除', 'info');
+        } else {
+            showToast('删除失败', 'error');
+        }
+    } catch (error) {
+        console.error('删除任务失败:', error);
+        showToast('删除失败: ' + error.message, 'error');
+    }
+}
+
+// 从历史记录重试任务
+async function retryTaskFromHistory(taskId, topic) {
+    // 将当前任务移到历史
+    moveCurrentToHistory();
+
+    // 删除旧的失败记录（从服务器和DOM）
+    try {
+        const response = await fetch(`${API_BASE}/history/${taskId}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            // 从DOM中移除（静默删除，不显示toast）
+            const card = document.querySelector(`[data-task-id="${taskId}"]`);
+            if (card) {
+                card.remove();
+            }
+        }
+    } catch (error) {
+        console.error('删除旧任务记录失败:', error);
+        // 即使删除失败，也继续执行重试
+    }
+
+    // 执行生成任务
+    await executeGenerate(topic);
+}
+
+// 应用筛选器
+function applyFilter() {
+    const startDate = document.getElementById('filter-start-date').value;
+    const endDate = document.getElementById('filter-end-date').value;
+    const status = document.getElementById('filter-status').value;
+
+    loadTaskHistory(startDate, endDate, status);
+}
+
+// 重置筛选器
+function resetFilter() {
+    document.getElementById('filter-start-date').value = '';
+    document.getElementById('filter-end-date').value = '';
+    document.getElementById('filter-status').value = '';
+
+    loadTaskHistory();
+}
+
 // 监听模型输入框的变化
 document.addEventListener('DOMContentLoaded', () => {
     const modelInput = document.getElementById('default_model');
@@ -421,4 +718,7 @@ document.addEventListener('DOMContentLoaded', () => {
         apiKeyInput.addEventListener('input', debounceValidateModel);
         baseUrlInput.addEventListener('input', debounceValidateModel);
     }
+
+    // 页面加载时加载历史记录
+    loadTaskHistory();
 });

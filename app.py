@@ -17,6 +17,7 @@ import requests
 
 from core.content_generator import ContentGenerator
 from config.config_manager import ConfigManager
+from cache.cache_manager import CacheManager
 
 # 获取当前文件的目录
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -60,8 +61,9 @@ app.add_middleware(
 # 配置模板
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
-# 初始化配置管理器
+# 初始化配置管理器和缓存管理器
 config_manager = ConfigManager()
+cache_manager = CacheManager()
 
 
 # Pydantic 模型
@@ -88,6 +90,13 @@ class ValidateModelRequest(BaseModel):
 
 class GeneratePublishRequest(BaseModel):
     topic: str
+
+
+class TaskHistoryQueryRequest(BaseModel):
+    start_date: str = None
+    end_date: str = None
+    status: str = None
+    limit: int = 100
 
 
 # 路由
@@ -256,19 +265,39 @@ async def generate_and_publish(request_data: GeneratePublishRequest) -> Dict[str
         result = await generator.generate_and_publish(topic)
 
         if result.get('success'):
+            response_data = {
+                'title': result.get('title', ''),
+                'content': result.get('content', ''),
+                'tags': result.get('tags', []),
+                'images': result.get('images', []),
+                'publish_status': result.get('publish_status', ''),
+                'publish_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            }
+
+            # 保存到缓存
+            task_record = {
+                'topic': topic,
+                'status': 'success',
+                'progress': 100,
+                'message': '发布成功',
+                **response_data
+            }
+            task_id = cache_manager.add_task(task_record)
+
             return {
                 'success': True,
                 'message': '内容生成并发布成功',
-                'data': {
-                    'title': result.get('title', ''),
-                    'content': result.get('content', ''),
-                    'tags': result.get('tags', []),
-                    'images': result.get('images', []),
-                    'publish_status': result.get('publish_status', ''),
-                    'publish_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                }
+                'data': response_data
             }
         else:
+            # 保存失败记录到缓存
+            cache_manager.add_task({
+                'topic': topic,
+                'status': 'error',
+                'progress': 0,
+                'message': result.get('error', '生成失败')
+            })
+
             raise HTTPException(
                 status_code=500,
                 detail=result.get('error', '生成失败')
@@ -290,6 +319,64 @@ async def get_task_status(task_id: str) -> Dict[str, Any]:
         'status': 'completed',
         'progress': 100
     }
+
+
+@app.get("/api/history")
+async def get_task_history(
+    start_date: str = None,
+    end_date: str = None,
+    status: str = None,
+    limit: int = 100
+) -> Dict[str, Any]:
+    """获取任务历史记录"""
+    try:
+        tasks = cache_manager.get_tasks(
+            start_date=start_date,
+            end_date=end_date,
+            status=status,
+            limit=limit
+        )
+        return {
+            'success': True,
+            'data': tasks,
+            'count': len(tasks)
+        }
+    except Exception as e:
+        logger.error(f"获取历史记录失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/history/{task_id}")
+async def delete_task_history(task_id: str) -> Dict[str, Any]:
+    """删除指定的任务历史记录"""
+    try:
+        success = cache_manager.delete_task(task_id)
+        if success:
+            return {
+                'success': True,
+                'message': '任务已删除'
+            }
+        else:
+            raise HTTPException(status_code=404, detail='任务不存在')
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"删除任务失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/history/statistics")
+async def get_statistics() -> Dict[str, Any]:
+    """获取任务统计信息"""
+    try:
+        stats = cache_manager.get_statistics()
+        return {
+            'success': True,
+            'data': stats
+        }
+    except Exception as e:
+        logger.error(f"获取统计信息失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # 挂载静态文件 - 必须在所有路由定义之后

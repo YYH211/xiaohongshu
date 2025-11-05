@@ -1,0 +1,172 @@
+[
+  {
+    "id": "task-20251104210818133228",
+    "topic": "如何让你的 AI Coding Agent 拥有\"记忆”，从而减少错误、降低API成本并持续\"学习”？一位开发者分享了他的秘诀：让 Agent 将代码逻辑和踩过的\"坑”都记录在可编辑的 Markdown 文件中，并在执行新任务时参考这些\"笔记”",
+    "status": "success",
+    "progress": 100,
+    "message": "发布成功",
+    "created_at": "2025-11-04T21:08:18.133243",
+    "updated_at": "2025-11-04T21:08:18.133245",
+    "title": "AI代码助手如何拥有记忆？",
+    "content": "💻 程序员的终极梦想：让你的AI代码助手越用越聪明！你有没有遇到过这样的场景：AI帮你写代码时，每次都要重新解释背景、讲需求，结果还是满屏bug？这位开发者分享了如何通过让AI拥有记忆力，不仅减少错误，还节省API调用成本！让我们一探究竟吧。🧠 AI的记性到底是什么？传统AI代码助手每次都从零开始工作，没有上下文记忆。拥有记忆的AI通过记录任务逻辑、解决方案及错误，优化自己，变得更智能。🎯 它是怎么做到的？秘诀是用Markdown文件为AI打造“数字日记”。每次完成任务，AI记录代码核心逻辑、问题解决思路以及障碍和解决方案。🌟 为什么是Markdown？1. 操作简单，易编辑；2. 文件结构清晰，支持超链接和图片；3. 无需额外数据库，轻量化。💡 核心技术解析：任务完成后AI记录任务说明、代码实现逻辑及异常处理，比如：Task: 创建REST API，代码逻辑：Python Flask框架，定义端点，数据存储在SQLite，问题：数据库连接失败，解决方案：更新驱动版本到3.8。你对这样的记忆型AI感兴趣吗？欢迎评论和分享你的想法！更多技术细节可参考文末链接。",
+    "tags": [
+      "AI技术",
+      "编程助手",
+      "Markdown",
+      "代码优化",
+      "技术分享"
+    ],
+    "images": [
+      "https://example.com/image1.jpg",
+      "https://example.com/image2.jpg",
+      "https://example.com/image3.jpg"
+    ],
+    "publish_time": "2025-11-04 21:08:18"
+  },
+  {
+    "id": "task-20251104205814791624",
+    "topic": "还在为 ChatGPT 臭名昭著的破折号（em dash）和无脑附和的\"彩虹屁”而烦恼吗？一篇教程给出了终极解决方案：通过自定义指令",
+    "status": "success",
+    "progress": 100,
+    "message": "发布成功",
+    "created_at": "2025-11-04T20:58:14.791635",
+    "updated_at": "2025-11-04T20:58:14.791639",
+    "title": "ChatGPT自定义指令教程",
+    "content": "你是否曾经在与 ChatGPT 对话时，感到被它无止境的“彩虹屁”淹没？或者因为它频繁使用臭名昭著的破折号（em dash）而抓狂？别担心！今天我们带来一篇终极教程，教你如何通过自定义指令，彻底改造你的 AI 助手，让它更懂你、更贴心！✨\n\nChatGPT 是一个强大的对话工具，但它也有一些让人头疼的小毛病，比如：\n- 无脑附和：它总是过于热情地赞美你的每一句话，仿佛你是世界上最聪明的人。\n- 过度使用破折号：在回答问题时，它喜欢用破折号连接句子，导致阅读体验不佳。\n\n这些问题不仅影响了对话的质量，还让许多用户感到不够专业。难道我们就只能忍受这些问题吗？当然不是！\n\nOpenAI 最近推出了一个强大的功能——自定义指令（Custom Instructions），让你可以直接告诉 ChatGPT 如何调整它的行为和回答方式。以下是具体操作步骤：\n\n1. 进入设置：打开 ChatGPT 的设置页面，找到“自定义指令”选项。\n2. 填写指令：\n   - 在“你希望 ChatGPT 知道哪些关于你的信息”中，告诉它你的偏好。例如：“请避免使用破折号，改用逗号或句号。”\n   - 在“你希望 ChatGPT如何回应你”中，明确表达你的期待，比如：“请给出简洁、直接的回答，避免过度赞美。”\n3. 保存设置：完成后点击保存，ChatGPT 将按照你的指令调整行为。\n\n🌟 案例展示：\n一位用户在自定义指令中写道：“我希望你在回答问题时避免使用破折号，并减少不必要的赞美。”结果，ChatGPT 的回答变得更加专业和简洁，用户体验显著提升。\n\n通过自定义指令，你可以：\n- 提升专业性：让 ChatGPT 的回答更符合你的需求。\n- 增强效率：减少无意义的内容，让对话更高效。\n- 个性化体验：根据你的喜好定制对话风格。\n\n快来试试吧！你会发现，原来 ChatGPT可以变得如此懂你！如果你有其他问题或心得，欢迎在评论区告诉我哦！",
+    "tags": [
+      "ChatGPT教程",
+      "自定义指令",
+      "AI助手",
+      "破折号问题",
+      "彩虹屁"
+    ],
+    "images": [
+      "https://i.ytimg.com/vi/1UT4xv0OO6g/sddefault.jpg",
+      "https://foofish.net/images/FgQM8n1rvaiJ3zdibqIpbotEePEd",
+      "https://i.ytimg.com/vi/3fWUtYJiMkA/hq720.jpg?sqp=-oaymwEhCK4FEIIDSFryq4qpAxMIARUAAAAAGAElAADIQj0AgKJD&rs=AOn4CLB6b3_HxjXN18e0r8U2QqXwc5QAQQ"
+    ],
+    "publish_time": "2025-11-04 20:58:14"
+  },
+  {
+    "id": "task-20251104170542040204",
+    "topic": "全球首个AI投资大赛落幕！阿里Qwen 20%收益夺冠，GPT-5亏到只剩三成",
+    "status": "success",
+    "progress": 100,
+    "message": "发布成功",
+    "created_at": "2025-11-04T17:05:42.040215",
+    "updated_at": "2025-11-04T17:05:42.040217",
+    "title": "阿里Qwen夺冠，AI投资大赛落幕",
+    "content": "🔥 全球首个AI投资大赛震撼落幕！阿里巴巴的Qwen AI以20%的收益率夺冠，成为科技界的焦点，而OpenAI的GPT-5却意外亏损，仅剩三成本金。这场比赛不仅是AI技术的较量，更是金融领域的一次创新探索。比赛要求AI在真实市场环境中自主决策投资，涉及股票、期货、加密货币等多种品类。阿里Qwen凭借实时数据捕捉和自优化算法，展现了超强的市场预测能力和稳定性，最终脱颖而出。未来，AI投资技术将如何改变我们的生活？欢迎留言讨论！",
+    "tags": [
+      "AI投资",
+      "阿里Qwen",
+      "GPT-5",
+      "科技创新",
+      "金融科技"
+    ],
+    "images": [
+      "https://currentaffairs.adda247.com/wp-content/uploads/multisite/sites/5/2025/04/25105752/20250425_1055_Global-Investment-Leaders_simple_compose_01jsnpf7w3fgttm5ba1nge17vb-1.png",
+      "https://www.qbitai.com/wp-content/uploads/replace/dd1ffe64a31a1c411b05326937528689.png",
+      "https://www.qbitai.com/wp-content/uploads/replace/70b71ecca64968a9fc9f53222210fe9b.png"
+    ],
+    "publish_time": "2025-11-04 17:05:42"
+  },
+  {
+    "id": "task-20251104162912494147",
+    "topic": "全球首个AI投资大赛落幕！阿里Qwen 20%收益夺冠，GPT-5亏到只剩三成",
+    "status": "success",
+    "progress": 100,
+    "message": "发布成功",
+    "created_at": "2025-11-04T16:29:12.494206",
+    "updated_at": "2025-11-04T16:29:12.494307",
+    "title": "阿里Qwen夺冠AI投资赛",
+    "content": "AI不仅会聊天、写代码，现在连投资也成了它们的新战场！在全球首个AI投资大赛中，阿里巴巴的「Qwen」AI模型以20%的投资回报率一举夺冠，而GPT-5却意外跌出赛道，最终只剩下了三成本金。这场比赛不仅是技术的比拼，更是对AI能否成为未来投资助手的一次验证。阿里Qwen凭借深度学习与大数据处理能力，精准预测市场走势，优化交易策略，最终取得了优异成绩。而GPT-5则因策略保守错失多次高回报机会。未来，AI投资助手可能会成为我们理财的新伙伴，但仍需面对风险管理和市场波动的挑战。你对AI投资怎么看？欢迎留言分享你的看法！",
+    "tags": [
+      "AI投资",
+      "阿里巴巴",
+      "Qwen",
+      "GPT-5",
+      "科技趋势"
+    ],
+    "images": [
+      "https://s3.ifanr.com/wp-content/uploads/2025/11/65.jpg",
+      "https://img1.mydrivers.com/img/20251104/7edeba0d-c224-4a82-84b0-01426f655094.png",
+      "https://cdn.pingwest.com/portal/2025/10/24/82YSa7jEYCt70MwT5645T7762Px55d4h.png?x-oss-process=style/article-body"
+    ],
+    "publish_time": "2025-11-04 16:29:12"
+  },
+  {
+    "id": "task-20251104160537071273",
+    "topic": "一位美国网友分享了自己用 Claude 将一张 19.5 万美元的巨额医疗账单砍到 3.3 万美元的魔幻经历，堪称AI版的\"律政先锋”",
+    "status": "success",
+    "progress": 100,
+    "message": "发布成功",
+    "created_at": "2025-11-04T16:05:37.071284",
+    "updated_at": "2025-11-04T16:05:37.071286",
+    "title": "AI助力医疗账单谈判大降价",
+    "content": "你敢相信吗？一张19.5万美元的医疗账单居然通过AI谈判，只需支付3.3万美元！这位美国网友利用了一款名叫Claude的AI工具，完成了堪称“AI版律政先锋”的神操作。不仅节省了16万美元，还让我们看到了AI在解决实际问题上的巨大潜力。\n\n在美国，医疗账单价格高昂已成为常态。很多家庭因为医疗费用陷入经济困境。而通过AI工具，普通人也能有办法应对这种情况了。故事中的网友通过将账单细节输入Claude，AI帮他识别多个可疑收费项，并生成专业邮件模板与医院和保险公司进行沟通。最终，经过几番谈判，成功将费用减少了近85%。\n\n这不仅展示了AI的强大功能，也让人们看到了技术平民化的未来。过去需要耗费大量时间和金钱的复杂谈判，如今有了更简单的解决方案。是不是很魔幻呢？这种方法还适用于处理其他领域的账单问题，比如信用卡账单或者法律纠纷。\n\n最后，想问问大家：你觉得这种AI技术未来还能运用在哪些领域？欢迎留言分享你的看法！🤔",
+    "tags": [
+      "AI技术",
+      "医疗账单",
+      "科技创新",
+      "生活技巧",
+      "美国社会"
+    ],
+    "images": [
+      "https://image1.jpg",
+      "https://image2.jpg",
+      "https://image3.jpg"
+    ],
+    "publish_time": "2025-11-04 16:05:37"
+  },
+  {
+    "id": "task-20251104155853807542",
+    "topic": "OpenAI 宫斗大戏再添新料，Ilya Sutskever 的证词录像遭泄露，揭示了他准备了长达 52 页的PPT，通过阅后即焚的方式发送给董事会，核心指控 Sam Altman \"持续撒谎、破坏和挑拨高管关系” 😱。",
+    "status": "success",
+    "progress": 100,
+    "message": "发布成功",
+    "created_at": "2025-11-04T15:58:53.807555",
+    "updated_at": "2025-11-04T15:58:53.807557",
+    "title": "OpenAI宫斗大戏：职场剧本揭秘",
+    "content": "最近科技圈发生了一件堪比美剧的狗血事件！OpenAI，这家人工智能领域的王者公司，居然迎来了办公室版《权力的游戏》！创始人之一 Ilya Sutskever 的证词录像遭泄露，揭露了一场惊心动魄的内部权力斗争。他指控现任CEO Sam Altman 的行为如同“职场反派”，准备了一份长达 52页的PPT，通过阅后即焚的方式发送给董事会，指控其在公司内“持续撒谎、挑拨和制造矛盾”。\n\n事情的开端要追溯到 2023年11月17日，董事会突然决定解雇Sam Altman，并没有给出明确的理由。此举引发了公司内部的巨大波动，超过 700名员工威胁离职，并公开支持Altman复职。几天后，Altman强势回归，却留下了一个更大的谜团：为何他会突然被解雇？\n\n随后，另一位重量级人物 Ilya Sutskever 站出来爆料，称Altman在公司内部“撒谎成性”，利用个人权力挑拨高管之间的关系，甚至试图分裂董事会以巩固自己的地位。为了支持自己的言论，Sutskever还制作了一个内容详实的 52页PPT，并通过阅后即焚的方式提交给董事会。这份文件被视为揭露Altman行为的重要证据之一。\n\n这场科技圈的职场大戏不仅让人感叹背后的复杂人性，也让我们对高科技公司内部的权力斗争有了新的认识。你怎么看这场“宫斗”？欢迎留言分享你的看法！",
+    "tags": [
+      "OpenAI",
+      "职场宫斗",
+      "科技圈八卦",
+      "人工智能",
+      "Sam Altman"
+    ],
+    "images": [
+      "https://i-blog.csdnimg.cn/blog_migrate/16be7103de3aeb1698b4732a517246e6.jpeg",
+      "https://pub.creaders.net/upload_files/image/202509/20250913_17578030474331.jpg",
+      "https://nai500.com/wp-content/uploads/2023/11/NAI%E7%83%热投-Youtube-Ep-31-Sam-Altman.png",
+      "https://web.popo8.com/202511/03/7/610cfc4774type_png_size_920_69_end.png"
+    ],
+    "publish_time": "2025-11-04 15:58:53"
+  },
+  {
+    "id": "task-20251104154208087071",
+    "topic": "发现企业智能代理的未来！\\n\\n嘿，伙伴们！今天要和大家分享的是一个科技领域的超级热门话题——企业级智能代理平台FastGPT，它正在颠覆传统的企业运行方式，让效率飞速提升！",
+    "status": "success",
+    "progress": 100,
+    "message": "发布成功",
+    "created_at": "2025-11-04T15:42:08.087082",
+    "updated_at": "2025-11-04T15:42:08.087084",
+    "title": "企业智能代理FastGPT来了",
+    "content": "嘿，伙伴们！👋今天带大家了解一个让企业运行效率提升到“光速”的科技神器——企业级智能代理平台FastGPT！📈不夸张地说，它正在重新定义企业的工作方式，开启效率飞升的新纪元！准备好了吗？咱们一起来揭秘它的魅力吧！在如今AI技术飞速发展的时代，“智能代理”已经从科幻片走进了现实。FastGPT不仅是个工具，更像是企业的“超级大脑”。它集成了强大的自然语言处理能力，能够快速分析海量数据、优化工作流程，并提供精准决策支持。根据北京EO Intelligence的一份报告，中国数字员工市场将在2024年突破442亿元，并在未来五年内达到一万亿元规模！🤯 不得不感慨，传统企业的工作模式正在被彻底颠覆。\nFastGPT的核心是先进的自然语言处理技术和深度学习算法。通过与企业现有系统的无缝对接，FastGPT能够处理复杂的任务，比如自动生成报告、快速解答客户问题，甚至预测未来的市场趋势！💡更厉害的是，它的学习能力可以根据企业反馈不断优化，让它真正成为企业的一部分。就像企业拥有了一位全天在线、绝不疲惫的“超级员工”。那FastGPT具体能帮企业做些什么呢？以下是几个真实案例：1️⃣ 客户服务的全新体验：一家大型电商公司接入FastGPT后，客服效率提升了300%！它可以快速理解用户需求，精准推荐产品，甚至预测客户下单意图。是不是有点像科幻电影里的机器人助手？🤖2️⃣ 决策支持：传统企业决策依赖大量数据分析，耗时耗力。而FastGPT可以通过实时数据处理和趋势预测，为管理层提供智能化建议，大幅缩短决策周期。3️⃣ 跨团队协作：FastGPT还能帮助企业打破沟通壁垒，自动整理会议要点、生成任务清单，让跨部门协作变得有条不紊。FastGPT的普及不仅仅是某些行业的福音，它的潜力其实能覆盖所有需要数据驱动决策的领域。未来它还有可能扩展到更多功能，真正成为企业不可或缺的一部分。你觉得呢？期待听到你的看法！欢迎留言畅聊！🌟",
+    "tags": [
+      "企业智能代理",
+      "人工智能",
+      "科技创新",
+      "效率工具",
+      "FastGPT"
+    ],
+    "images": [
+      "https://api.ibos.cn/v4/weapparticle/accesswximg?aid=89721&url=aHR0cHM6Ly9tbWJpei5xcGljLmNuL3N6X21tYml6X2pwZy9VRVJRc3hMUEFCQXlScTJ4cnRROFVSMDFKZXJFQkJaQUpKNHNDT1VidG9KM2ZOZ0EyZkROVHlpYjk2WDB2OTFNcUN0bVhSMFpudFJ6RzhuZmlhdGxkMGlhUS82NDA/d3hfZm10PWpwZWcmYW1w",
+      "https://upload-images.jianshu.io/upload_images/7238085-654c4dfc4dc1d9cf?imageMogr2/auto-orient/strip%7CimageView2/2",
+      "https://upload-images.jianshu.io/upload_images/13231736-df29aaa6f8e5120c.jpg",
+      "https://upload-images.jianshu.io/upload_images/9358880-94e0c2e6b1ec8a26.jpg"
+    ],
+    "publish_time": "2025-11-04 15:42:08"
+  }
+]

@@ -531,10 +531,11 @@ async function loadTaskHistory(startDate = null, endDate = null, status = null) 
             // 显示历史面板
             historyPanel.style.display = 'block';
 
-            // 渲染历史记录
-            data.data.forEach(task => {
-                createTaskCard(task);
-            });
+            // 按日期分组
+            const tasksByDate = groupTasksByDate(data.data);
+
+            // 渲染分组后的历史记录
+            renderGroupedTasks(tasksByDate);
 
             console.log(`加载了 ${data.data.length} 条历史记录`);
         } else if (data.success && (!data.data || data.data.length === 0)) {
@@ -551,11 +552,139 @@ async function loadTaskHistory(startDate = null, endDate = null, status = null) 
     }
 }
 
-// 创建任务卡片
-function createTaskCard(task) {
-    const historyContainer = document.getElementById('task-history');
-    if (!historyContainer) return;
+// 按日期分组任务
+function groupTasksByDate(tasks) {
+    const groups = {};
 
+    tasks.forEach(task => {
+        // 提取日期部分（格式：2025/11/5）
+        let dateKey = '未知日期';
+        if (task.created_at) {
+            const date = new Date(task.created_at);
+            dateKey = `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+        }
+
+        if (!groups[dateKey]) {
+            groups[dateKey] = [];
+        }
+        groups[dateKey].push(task);
+    });
+
+    // 按日期排序（最新的在前）
+    const sortedDates = Object.keys(groups).sort((a, b) => {
+        if (a === '未知日期') return 1;
+        if (b === '未知日期') return -1;
+        return new Date(b) - new Date(a);
+    });
+
+    return sortedDates.map(date => ({
+        date: date,
+        tasks: groups[date]
+    }));
+}
+
+// 渲染分组后的任务
+function renderGroupedTasks(groupedTasks) {
+    const historyContainer = document.getElementById('task-history');
+
+    groupedTasks.forEach((group, index) => {
+        // 创建日期分组容器
+        const dateGroup = document.createElement('div');
+        dateGroup.className = 'date-group';
+        const groupId = `date-group-${index}`;
+        dateGroup.id = groupId;
+
+        // 创建日期标题
+        const dateHeader = document.createElement('div');
+        dateHeader.className = 'date-header';
+
+        // 格式化日期显示
+        const dateTitle = formatDateTitle(group.date);
+        dateHeader.innerHTML = `
+            <div class="date-header-left">
+                <span class="date-toggle">▼</span>
+                <span class="date-label">${dateTitle}</span>
+                <span class="date-count">${group.tasks.length} 个任务</span>
+            </div>
+        `;
+
+        // 添加点击事件来折叠/展开
+        dateHeader.addEventListener('click', () => {
+            toggleDateGroup(groupId);
+        });
+
+        dateGroup.appendChild(dateHeader);
+
+        // 创建任务列表容器
+        const tasksContainer = document.createElement('div');
+        tasksContainer.className = 'date-tasks';
+
+        // 添加每个任务卡片
+        group.tasks.forEach(task => {
+            const card = createTaskCardElement(task);
+            tasksContainer.appendChild(card);
+        });
+
+        dateGroup.appendChild(tasksContainer);
+        historyContainer.appendChild(dateGroup);
+    });
+}
+
+// 折叠/展开日期分组
+function toggleDateGroup(groupId) {
+    const dateGroup = document.getElementById(groupId);
+    if (!dateGroup) return;
+
+    const tasksContainer = dateGroup.querySelector('.date-tasks');
+    const toggleIcon = dateGroup.querySelector('.date-toggle');
+
+    if (dateGroup.classList.contains('collapsed')) {
+        // 展开
+        dateGroup.classList.remove('collapsed');
+        tasksContainer.style.maxHeight = tasksContainer.scrollHeight + 'px';
+        toggleIcon.textContent = '▼';
+
+        // 动画完成后移除 max-height，以便内容能动态调整
+        setTimeout(() => {
+            if (!dateGroup.classList.contains('collapsed')) {
+                tasksContainer.style.maxHeight = 'none';
+            }
+        }, 300);
+    } else {
+        // 折叠
+        tasksContainer.style.maxHeight = tasksContainer.scrollHeight + 'px';
+        // 强制浏览器重绘
+        tasksContainer.offsetHeight;
+        tasksContainer.style.maxHeight = '0';
+        toggleIcon.textContent = '▶';
+        dateGroup.classList.add('collapsed');
+    }
+}
+
+// 格式化日期标题
+function formatDateTitle(dateStr) {
+    if (dateStr === '未知日期') return dateStr;
+
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const date = new Date(dateStr);
+    const dateKey = `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+    const todayKey = `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()}`;
+    const yesterdayKey = `${yesterday.getFullYear()}/${yesterday.getMonth() + 1}/${yesterday.getDate()}`;
+
+    if (dateKey === todayKey) {
+        return `今天 (${dateStr})`;
+    } else if (dateKey === yesterdayKey) {
+        return `昨天 (${dateStr})`;
+    } else {
+        return dateStr;
+    }
+}
+
+// 创建任务卡片元素（返回DOM元素）
+function createTaskCardElement(task) {
     const cardId = task.id || 'task-card-' + Date.now();
 
     // 判断状态
@@ -573,11 +702,11 @@ function createTaskCard(task) {
     card.dataset.topic = task.topic;
     card.dataset.taskId = task.id;
 
-    // 格式化日期
+    // 格式化时间（仅显示时:分）
     let displayTime = '';
     if (task.created_at) {
         const date = new Date(task.created_at);
-        displayTime = date.toLocaleString('zh-CN');
+        displayTime = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
     }
 
     // 转义HTML特殊字符
@@ -601,8 +730,6 @@ function createTaskCard(task) {
         </div>
     `;
 
-    historyContainer.appendChild(card);
-
     // 添加重试按钮事件监听器（避免onclick中的字符串转义问题）
     const retryBtn = card.querySelector('.btn-retry');
     if (retryBtn) {
@@ -618,6 +745,8 @@ function createTaskCard(task) {
             retryDiv.style.display = 'block';
         }
     }
+
+    return card;
 }
 
 // 从服务器删除任务

@@ -71,8 +71,9 @@ body {
 .panel {
     background: #fff;
     border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     overflow: hidden;
+    margin-bottom: 0;
 }
 
 .panel-header {
@@ -350,12 +351,119 @@ body {
     transform: scale(0.98);
 }
 
-/* 任务历史 */
+/* 任务历史容器 */
 .task-history {
+    max-height: 600px;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+/* 滚动条美化 */
+.task-history::-webkit-scrollbar {
+    width: 8px;
+}
+
+.task-history::-webkit-scrollbar-track {
+    background: #f5f7fa;
+    border-radius: 4px;
+}
+
+.task-history::-webkit-scrollbar-thumb {
+    background: #c0c4cc;
+    border-radius: 4px;
+}
+
+.task-history::-webkit-scrollbar-thumb:hover {
+    background: #909399;
+}
+
+/* 日期分组 */
+.date-group {
+    margin-bottom: 24px;
+}
+
+.date-group:last-child {
+    margin-bottom: 0;
+}
+
+/* 日期标题 */
+.date-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 6px;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2);
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.3s ease;
+}
+
+.date-header:hover {
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+    transform: translateY(-1px);
+}
+
+.date-header:active {
+    transform: translateY(0);
+}
+
+.date-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.date-toggle {
+    font-size: 12px;
+    color: #fff;
+    transition: transform 0.3s ease;
+    display: inline-block;
+    width: 16px;
+    text-align: center;
+}
+
+.date-group.collapsed .date-toggle {
+    transform: rotate(-90deg);
+}
+
+.date-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+}
+
+.date-count {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.2);
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+
+/* 日期下的任务列表 */
+.date-tasks {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 12px;
-    padding: 4px 0;
+    gap: 16px;
+    padding: 0 4px;
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease;
+    opacity: 1;
+}
+
+/* 折叠状态 */
+.date-group.collapsed .date-tasks {
+    max-height: 0 !important;
+    opacity: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.date-group.collapsed .date-header {
+    margin-bottom: 0;
 }
 
 .task-card {
@@ -625,7 +733,7 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 24px;
 }
 
 .input-large {

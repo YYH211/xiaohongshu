@@ -33,6 +33,9 @@ config/app_config.json
 config/servers_config.json
 config/.env
 
+# Cache files (runtime generated data)
+cache/task_history.json
+
 # Logs
 logs/
 *.log

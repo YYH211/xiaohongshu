@@ -92,6 +92,49 @@
 
             <!-- 右侧主内容 -->
             <main class="content-area">
+                <!-- 热点主题面板 -->
+                <div class="panel trending-panel">
+                    <div class="panel-header">
+                        <span>🔥 今日热点主题</span>
+                    </div>
+                    <div class="panel-body">
+                        <!-- 领域快捷选择 -->
+                        <div class="domain-selector">
+                            <label class="domain-label">选择领域获取热点：</label>
+                            <div class="domain-tags">
+                                <button class="domain-tag" onclick="fetchTrendingTopicsByDomain('AI')">🤖 AI</button>
+                                <button class="domain-tag" onclick="fetchTrendingTopicsByDomain('融资')">💰 融资</button>
+                                <button class="domain-tag" onclick="fetchTrendingTopicsByDomain('论文')">📄 论文</button>
+                                <button class="domain-tag" onclick="fetchTrendingTopicsByDomain('机器人')">🦾 机器人</button>
+                            </div>
+                        </div>
+
+                        <!-- URL爬取 -->
+                        <div class="url-crawler">
+                            <label class="url-label">或输入网页链接提取主题：</label>
+                            <div class="url-input-group">
+                                <input type="text" id="url-input" class="url-input" placeholder="输入网页链接，例如：https://example.com/article">
+                                <button class="btn-crawl" onclick="fetchTopicsFromUrl()">🔍 提取主题</button>
+                            </div>
+                        </div>
+
+                        <div id="trending-topics-container" class="trending-topics-container">
+                            <p class="trending-hint">点击上方领域标签搜索热点，或输入网页链接提取主题</p>
+                        </div>
+                        <div id="trending-actions" class="trending-actions" style="display: none;">
+                            <div class="trending-actions-left">
+                                <button class="btn-select-all" onclick="toggleSelectAll()">
+                                    ✓ 全选
+                                </button>
+                                <span class="selected-count" id="selected-count">已选择 0 个主题</span>
+                            </div>
+                            <button class="btn btn-primary" onclick="batchGenerate()">
+                                🚀 批量生成选中主题
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- 内容生成面板 -->
                 <div class="panel generate-panel">
                     <div class="panel-header">
@@ -131,10 +174,11 @@
 
                 <!-- 历史任务面板 -->
                 <div class="panel" id="history-panel" style="display: none;">
-                    <div class="panel-header">
+                    <div class="panel-header" onclick="togglePanel('history')">
                         <span>📝 任务历史</span>
+                        <span class="toggle-btn" id="history-toggle">▼</span>
                     </div>
-                    <div class="panel-body">
+                    <div class="panel-body" id="history-panel-body">
                         <!-- 筛选器 -->
                         <div class="history-filter">
                             <div class="filter-row">

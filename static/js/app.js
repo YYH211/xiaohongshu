@@ -8,8 +8,17 @@ let taskCardMap = {}; // { taskId: cardId } 映射任务ID到卡片ID
 
 // 折叠面板
 function togglePanel(panelId) {
-    const panel = document.getElementById(`${panelId}-panel`);
-    const toggle = document.getElementById(`${panelId}-toggle`);
+    let panel, toggle;
+
+    if (panelId === 'history') {
+        panel = document.getElementById('history-panel-body');
+        toggle = document.getElementById('history-toggle');
+    } else {
+        panel = document.getElementById(`${panelId}-panel`);
+        toggle = document.getElementById(`${panelId}-toggle`);
+    }
+
+    if (!panel || !toggle) return;
 
     panel.classList.toggle('collapsed');
     toggle.classList.toggle('collapsed');
@@ -590,7 +599,7 @@ function renderGroupedTasks(groupedTasks) {
     groupedTasks.forEach((group, index) => {
         // 创建日期分组容器
         const dateGroup = document.createElement('div');
-        dateGroup.className = 'date-group';
+        dateGroup.className = 'date-group collapsed'; // 默认折叠
         const groupId = `date-group-${index}`;
         dateGroup.id = groupId;
 
@@ -602,7 +611,7 @@ function renderGroupedTasks(groupedTasks) {
         const dateTitle = formatDateTitle(group.date);
         dateHeader.innerHTML = `
             <div class="date-header-left">
-                <span class="date-toggle">▼</span>
+                <span class="date-toggle">▶</span>
                 <span class="date-label">${dateTitle}</span>
                 <span class="date-count">${group.tasks.length} 个任务</span>
             </div>
@@ -618,6 +627,7 @@ function renderGroupedTasks(groupedTasks) {
         // 创建任务列表容器
         const tasksContainer = document.createElement('div');
         tasksContainer.className = 'date-tasks';
+        tasksContainer.style.maxHeight = '0'; // 初始高度为0（折叠状态）
 
         // 添加每个任务卡片
         group.tasks.forEach(task => {
@@ -834,6 +844,352 @@ function resetFilter() {
     document.getElementById('filter-status').value = '';
 
     loadTaskHistory();
+}
+
+// 存储热点主题数据
+let trendingTopics = [];
+let selectedTopics = new Set();
+
+// 按领域获取热点主题
+async function fetchTrendingTopicsByDomain(domain) {
+    const container = document.getElementById('trending-topics-container');
+    const actionsDiv = document.getElementById('trending-actions');
+
+    // 更新按钮状态
+    document.querySelectorAll('.domain-tag').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+
+    // 显示加载状态
+    container.innerHTML = '<p class="trending-hint">正在获取 ' + domain + ' 领域热点主题...</p>';
+    actionsDiv.style.display = 'none';
+
+    showToast(`正在获取 ${domain} 领域热点主题，请稍候...`, 'info');
+
+    try {
+        const response = await fetch(`${API_BASE}/fetch-trending-topics`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domain: domain })
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.topics && data.topics.length > 0) {
+            trendingTopics = data.topics;
+            renderTrendingTopics(data.topics);
+            showToast(`成功获取 ${data.topics.length} 个${domain}领域热点主题`, 'success');
+        } else {
+            container.innerHTML = `<p class="trending-hint">未能获取${domain}领域热点主题，请稍后重试</p>`;
+            showToast(`未能获取${domain}领域热点主题`, 'error');
+        }
+    } catch (error) {
+        container.innerHTML = '<p class="trending-hint">获取失败，请检查网络连接</p>';
+        showToast(`获取失败：${error.message}`, 'error');
+    }
+}
+
+// 从URL提取主题
+async function fetchTopicsFromUrl() {
+    const urlInput = document.getElementById('url-input');
+    const url = urlInput.value.trim();
+
+    if (!url) {
+        showToast('请输入网页链接', 'error');
+        return;
+    }
+
+    // 简单验证URL格式
+    try {
+        new URL(url);
+    } catch (e) {
+        showToast('请输入有效的网页链接', 'error');
+        return;
+    }
+
+    const container = document.getElementById('trending-topics-container');
+    const actionsDiv = document.getElementById('trending-actions');
+
+    // 清除领域标签的选中状态
+    document.querySelectorAll('.domain-tag').forEach(btn => {
+        btn.classList.remove('active');
+    });
+
+    // 显示加载状态
+    container.innerHTML = '<p class="trending-hint">正在爬取网页内容并提取主题...</p>';
+    actionsDiv.style.display = 'none';
+
+    showToast('正在爬取网页内容，请稍候...', 'info');
+
+    try {
+        const response = await fetch(`${API_BASE}/fetch-topics-from-url`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: url })
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.topics && data.topics.length > 0) {
+            trendingTopics = data.topics;
+            renderTrendingTopics(data.topics);
+            showToast(`成功从网页提取 ${data.topics.length} 个主题`, 'success');
+            // 清空输入框
+            urlInput.value = '';
+        } else {
+            container.innerHTML = '<p class="trending-hint">未能从该网页提取主题，请检查链接是否正确</p>';
+            showToast(data.error || '未能提取主题', 'error');
+        }
+    } catch (error) {
+        container.innerHTML = '<p class="trending-hint">提取失败，请检查网络连接或链接是否正确</p>';
+        showToast(`提取失败：${error.message}`, 'error');
+    }
+}
+
+// 渲染热点主题列表
+function renderTrendingTopics(topics) {
+    const container = document.getElementById('trending-topics-container');
+    const actionsDiv = document.getElementById('trending-actions');
+
+    container.innerHTML = '';
+    selectedTopics.clear();
+
+    topics.forEach((topic, index) => {
+        const topicItem = document.createElement('div');
+        topicItem.className = 'topic-item';
+        topicItem.dataset.index = index;
+
+        topicItem.innerHTML = `
+            <div class="topic-item-header">
+                <input type="checkbox" class="topic-checkbox" id="topic-${index}">
+                <label class="topic-title" for="topic-${index}">${topic.title}</label>
+            </div>
+            <div class="topic-summary">${topic.summary}</div>
+        `;
+
+        // 添加点击事件
+        const checkbox = topicItem.querySelector('.topic-checkbox');
+        checkbox.addEventListener('change', () => {
+            if (checkbox.checked) {
+                selectedTopics.add(index);
+                topicItem.classList.add('selected');
+            } else {
+                selectedTopics.delete(index);
+                topicItem.classList.remove('selected');
+            }
+            updateSelectedCount();
+        });
+
+        // 点击整个卡片也能选择
+        topicItem.addEventListener('click', (e) => {
+            if (e.target !== checkbox) {
+                checkbox.checked = !checkbox.checked;
+                checkbox.dispatchEvent(new Event('change'));
+            }
+        });
+
+        container.appendChild(topicItem);
+    });
+
+    actionsDiv.style.display = 'flex';
+    updateSelectedCount();
+}
+
+// 更新选中数量显示
+function updateSelectedCount() {
+    const countEl = document.getElementById('selected-count');
+    countEl.textContent = `已选择 ${selectedTopics.size} 个主题`;
+
+    // 更新全选按钮状态
+    const selectAllBtn = document.querySelector('.btn-select-all');
+    if (selectAllBtn) {
+        if (selectedTopics.size === trendingTopics.length && trendingTopics.length > 0) {
+            selectAllBtn.classList.add('all-selected');
+            selectAllBtn.textContent = '✓ 已全选';
+        } else {
+            selectAllBtn.classList.remove('all-selected');
+            selectAllBtn.textContent = '✓ 全选';
+        }
+    }
+
+    // 同步更新到当前任务区域
+    updateCurrentTaskDisplay();
+}
+
+// 更新当前任务显示区域
+function updateCurrentTaskDisplay() {
+    const currentTopicEl = document.getElementById('current-topic');
+    const progressTextEl = document.getElementById('progress-text');
+    const progressValueEl = document.getElementById('progress-value');
+
+    if (selectedTopics.size === 0) {
+        currentTopicEl.textContent = '等待任务开始...';
+        progressTextEl.textContent = '等待任务开始...';
+        progressValueEl.style.width = '0%';
+    } else {
+        const selectedTopicTitles = Array.from(selectedTopics).map(index => trendingTopics[index].title);
+
+        if (selectedTopics.size === 1) {
+            currentTopicEl.textContent = selectedTopicTitles[0];
+            progressTextEl.textContent = '已选择 1 个主题，点击「批量生成选中主题」开始创作';
+        } else {
+            currentTopicEl.textContent = `已选择 ${selectedTopics.size} 个主题`;
+            progressTextEl.textContent = `主题：${selectedTopicTitles.slice(0, 2).join('、')}${selectedTopics.size > 2 ? '...' : ''}`;
+        }
+        progressValueEl.style.width = '0%';
+    }
+}
+
+// 全选/取消全选
+function toggleSelectAll() {
+    const allSelected = selectedTopics.size === trendingTopics.length && trendingTopics.length > 0;
+
+    if (allSelected) {
+        // 取消全选
+        selectedTopics.clear();
+        document.querySelectorAll('.topic-checkbox').forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        document.querySelectorAll('.topic-item').forEach(item => {
+            item.classList.remove('selected');
+        });
+    } else {
+        // 全选
+        selectedTopics.clear();
+        trendingTopics.forEach((topic, index) => {
+            selectedTopics.add(index);
+        });
+        document.querySelectorAll('.topic-checkbox').forEach(checkbox => {
+            checkbox.checked = true;
+        });
+        document.querySelectorAll('.topic-item').forEach(item => {
+            item.classList.add('selected');
+        });
+    }
+
+    updateSelectedCount();
+}
+
+// 批量生成选中的主题
+async function batchGenerate() {
+    if (selectedTopics.size === 0) {
+        showToast('请先选择至少一个主题', 'error');
+        return;
+    }
+
+    // 获取选中的主题标题
+    const selectedTopicTitles = Array.from(selectedTopics).map(index => trendingTopics[index].title);
+
+    // 确认对话框
+    if (!confirm(`确定要批量生成并发布 ${selectedTopicTitles.length} 个主题吗？`)) {
+        return;
+    }
+
+    // 更新当前任务区域显示批量处理状态
+    const currentTopicEl = document.getElementById('current-topic');
+    const progressTextEl = document.getElementById('progress-text');
+    currentTopicEl.textContent = `批量生成 ${selectedTopicTitles.length} 个主题`;
+    progressTextEl.textContent = '准备开始批量处理...';
+    document.getElementById('progress-value').style.width = '0%';
+
+    // 显示批量进度区域
+    const container = document.getElementById('trending-topics-container');
+    const progressHtml = `
+        <div class="batch-progress">
+            <div class="batch-progress-title">批量生成进度</div>
+            <div class="batch-progress-bar">
+                <div class="batch-progress-value" id="batch-progress-value" style="width: 0%"></div>
+            </div>
+            <div class="batch-progress-text" id="batch-progress-text">准备开始...</div>
+        </div>
+    `;
+    container.insertAdjacentHTML('beforeend', progressHtml);
+
+    showToast(`开始批量处理 ${selectedTopicTitles.length} 个主题...`, 'info');
+
+    try {
+        const response = await fetch(`${API_BASE}/batch-generate-and-publish`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ topics: selectedTopicTitles })
+        });
+
+        // 模拟进度更新
+        updateBatchProgress(30, '正在处理中...');
+        await sleep(1000);
+
+        updateBatchProgress(60, '继续处理中...');
+        await sleep(1000);
+
+        updateBatchProgress(90, '即将完成...');
+
+        const data = await response.json();
+
+        if (data.success) {
+            updateBatchProgress(100, '批量处理完成！');
+
+            const summary = data.summary;
+            const message = `批量处理完成！成功 ${summary.success} 个，失败 ${summary.failed} 个`;
+            showToast(message, summary.failed === 0 ? 'success' : 'info');
+
+            // 显示详细结果
+            setTimeout(() => {
+                displayBatchResults(data.results);
+            }, 1000);
+
+            // 刷新历史记录
+            loadTaskHistory();
+        } else {
+            updateBatchProgress(0, '批量处理失败');
+            showToast('批量处理失败', 'error');
+        }
+    } catch (error) {
+        updateBatchProgress(0, `批量处理失败: ${error.message}`);
+        showToast(`批量处理失败：${error.message}`, 'error');
+    }
+}
+
+// 更新批量进度
+function updateBatchProgress(percent, text) {
+    const progressValue = document.getElementById('batch-progress-value');
+    const progressText = document.getElementById('batch-progress-text');
+
+    if (progressValue) {
+        progressValue.style.width = `${percent}%`;
+    }
+    if (progressText) {
+        progressText.textContent = text;
+    }
+
+    // 同步更新"当前任务"面板
+    document.getElementById('progress-value').style.width = `${percent}%`;
+    document.getElementById('progress-text').textContent = text;
+}
+
+// 显示批量处理结果
+function displayBatchResults(results) {
+    const container = document.getElementById('trending-topics-container');
+
+    let resultsHtml = '<div style="margin-top: 16px;"><h4 style="margin-bottom: 12px; color: #2c3e50;">处理结果：</h4>';
+
+    results.forEach(result => {
+        const statusIcon = result.status === 'success' ? '✅' : '❌';
+        const statusClass = result.status === 'success' ? 'success' : 'error';
+
+        resultsHtml += `
+            <div class="topic-item ${statusClass}" style="cursor: default;">
+                <div class="topic-item-header">
+                    <span style="font-size: 18px;">${statusIcon}</span>
+                    <div class="topic-title">${result.topic}</div>
+                </div>
+                ${result.status === 'error' ? `<div class="topic-summary" style="color: #f56c6c;">${result.error || '未知错误'}</div>` : ''}
+            </div>
+        `;
+    });
+
+    resultsHtml += '</div>';
+    container.insertAdjacentHTML('beforeend', resultsHtml);
 }
 
 // 监听模型输入框的变化

@@ -186,6 +186,361 @@ class ContentGenerator:
 
         return all_tools
 
+    async def fetch_trending_topics(self, domain: str = "") -> List[Dict[str, str]]:
+        """获取今日热点新闻主题
+
+        Args:
+            domain: 指定的领域（如：AI、融资、论文、机器人等）
+
+        Returns:
+            List[Dict[str, str]]: 热点主题列表，每个主题包含 title 和 summary
+        """
+        try:
+            logger.info(f"开始获取今日热点新闻主题{f'（{domain}领域）' if domain else ''}...")
+
+            # 获取可用工具
+            available_tools = await self.get_available_tools()
+
+            if not available_tools:
+                logger.error("没有可用的工具")
+                return []
+
+            # 将工具转换为OpenAI格式
+            openai_tools = [tool.to_openai_tool() for tool in available_tools]
+
+            # 根据是否指定领域构建不同的提示词
+            if domain:
+                system_prompt = f"""你是一个专业的新闻分析师，擅长发现和总结当前的热点话题。
+                请使用网络搜索工具查找今天（最近24小时内）关于「{domain}」领域最热门的新闻话题。
+                重点搜索：{domain}相关的最新进展、技术突破、行业动态、投融资消息等。
+                """
+
+                user_prompt = f"""请搜索并列出今天「{domain}」领域最热门的10个新闻话题。对于每个话题，请提供：
+                1. 简洁的标题（15-20字）
+                2. 简短的摘要说明（30-50字）
+
+                请确保这些话题都是最新的、有热度的，并且与{domain}领域密切相关，适合在社交媒体上创作内容。
+
+                搜索完成后，请按照以下JSON格式整理结果（注意：你的最终回复必须是纯JSON格式，不要包含任何其他文字）：
+                ```json
+                [
+                  {{
+                    "title": "话题标题",
+                    "summary": "话题摘要"
+                  }}
+                ]
+                ```
+                """
+            else:
+                system_prompt = """你是一个专业的新闻分析师，擅长发现和总结当前的热点话题。
+                请使用网络搜索工具查找今天（最近24小时内）最热门的新闻话题。
+                重点关注：科技、AI、互联网、社交媒体等领域的热点新闻。
+                """
+
+                user_prompt = """请搜索并列出今天最热门的10个新闻话题。对于每个话题，请提供：
+                1. 简洁的标题（15-20字）
+                2. 简短的摘要说明（30-50字）
+
+                请确保这些话题都是最新的、有热度的，适合在社交媒体上创作内容。
+
+                搜索完成后，请按照以下JSON格式整理结果（注意：你的最终回复必须是纯JSON格式，不要包含任何其他文字）：
+                ```json
+                [
+                  {
+                    "title": "话题标题",
+                    "summary": "话题摘要"
+                  }
+                ]
+                ```
+                """
+
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+
+            # 进行多轮工具调用
+            max_iterations = 5
+            iteration = 0
+
+            while iteration < max_iterations:
+                iteration += 1
+                logger.info(f"热点主题检索 - 第 {iteration} 轮")
+
+                # 获取工具调用响应
+                response = self.llm_client.get_tool_call_response(messages, openai_tools)
+                message = response.choices[0].message
+
+                if message.tool_calls:
+                    # 添加助手消息
+                    assistant_msg = {
+                        "role": "assistant",
+                        "content": message.content or "",
+                        "tool_calls": [
+                            {
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments
+                                }
+                            }
+                            for tc in message.tool_calls
+                        ]
+                    }
+                    messages.append(assistant_msg)
+
+                    # 执行所有工具调用
+                    for tool_call in message.tool_calls:
+                        tool_name = tool_call.function.name
+                        try:
+                            arguments = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
+                        except json.JSONDecodeError:
+                            arguments = {}
+
+                        logger.info(f"执行工具: {tool_name}")
+
+                        # 查找对应的服务器并执行工具
+                        tool_result = None
+                        for server in self.servers:
+                            tools = await server.list_tools()
+                            if any(tool.name == tool_name for tool in tools):
+                                try:
+                                    tool_result = await server.execute_tool(tool_name, arguments)
+                                    break
+                                except Exception as e:
+                                    logger.error(f"执行工具 {tool_name} 出错: {e}")
+                                    tool_result = f"Error: {str(e)}"
+
+                        if tool_result is None:
+                            tool_result = f"未找到工具 {tool_name}"
+
+                        # 添加工具结果消息
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": str(tool_result)
+                        })
+
+                    # 获取最终响应
+                    final_response = self.llm_client.get_final_response(messages, openai_tools)
+                    final_message = final_response.choices[0].message
+
+                    if final_message.tool_calls:
+                        # 继续下一轮
+                        response = final_response
+                    else:
+                        # 获取最终内容并解析
+                        final_content = final_message.content or ""
+                        logger.info("热点主题检索完成，开始解析结果")
+
+                        # 尝试从返回内容中提取JSON
+                        topics = self._parse_topics_from_response(final_content)
+                        return topics
+                else:
+                    # 没有工具调用，直接返回内容
+                    final_content = message.content or ""
+                    topics = self._parse_topics_from_response(final_content)
+                    return topics
+
+            logger.warning("达到最大迭代次数，未能完成热点主题检索")
+            return []
+
+        except Exception as e:
+            logger.error(f"获取热点主题失败: {e}", exc_info=True)
+            return []
+
+    def _parse_topics_from_response(self, content: str) -> List[Dict[str, str]]:
+        """从LLM响应中解析主题列表
+
+        Args:
+            content: LLM返回的内容
+
+        Returns:
+            解析出的主题列表
+        """
+        try:
+            # 尝试直接解析JSON
+            import re
+
+            # 查找JSON代码块
+            json_match = re.search(r'```json\s*([\s\S]*?)\s*```', content)
+            if json_match:
+                json_str = json_match.group(1)
+            else:
+                # 查找数组格式的JSON
+                json_match = re.search(r'\[\s*{[\s\S]*}\s*\]', content)
+                if json_match:
+                    json_str = json_match.group(0)
+                else:
+                    json_str = content
+
+            topics = json.loads(json_str)
+
+            if isinstance(topics, list):
+                # 验证每个主题的格式
+                valid_topics = []
+                for topic in topics:
+                    if isinstance(topic, dict) and 'title' in topic:
+                        valid_topics.append({
+                            'title': topic.get('title', ''),
+                            'summary': topic.get('summary', '')
+                        })
+
+                logger.info(f"成功解析出 {len(valid_topics)} 个热点主题")
+                return valid_topics[:10]  # 限制返回10个
+
+        except json.JSONDecodeError as e:
+            logger.error(f"解析JSON失败: {e}")
+        except Exception as e:
+            logger.error(f"解析主题失败: {e}")
+
+        return []
+
+    async def fetch_topics_from_url(self, url: str) -> List[Dict[str, str]]:
+        """从URL爬取内容并提取主题
+
+        Args:
+            url: 要爬取的网页URL
+
+        Returns:
+            List[Dict[str, str]]: 提取的主题列表，每个主题包含 title 和 summary
+        """
+        try:
+            logger.info(f"开始从URL提取主题: {url}")
+
+            # 获取可用工具
+            available_tools = await self.get_available_tools()
+
+            if not available_tools:
+                logger.error("没有可用的工具")
+                return []
+
+            # 将工具转换为OpenAI格式
+            openai_tools = [tool.to_openai_tool() for tool in available_tools]
+
+            # 构建提示词
+            system_prompt = """你是一个专业的内容分析师，擅长从网页内容中提取有价值的主题。
+            请使用网络爬取工具访问指定的URL，读取页面内容，然后分析提取出其中最有价值的主题。
+            """
+
+            user_prompt = f"""请访问以下网页并提取其中最有价值的10个主题：
+
+            URL: {url}
+
+            对于每个主题，请提供：
+            1. 简洁的标题（15-20字）
+            2. 简短的摘要说明（30-50字）
+
+            请确保提取的主题具有独立性，适合作为社交媒体内容创作的选题。
+
+            提取完成后，请按照以下JSON格式整理结果（注意：你的最终回复必须是纯JSON格式，不要包含任何其他文字）：
+            ```json
+            [
+              {{
+                "title": "话题标题",
+                "summary": "话题摘要"
+              }}
+            ]
+            ```
+            """
+
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+
+            # 进行多轮工具调用
+            max_iterations = 5
+            iteration = 0
+
+            while iteration < max_iterations:
+                iteration += 1
+                logger.info(f"URL内容提取 - 第 {iteration} 轮")
+
+                # 获取工具调用响应
+                response = self.llm_client.get_tool_call_response(messages, openai_tools)
+                message = response.choices[0].message
+
+                if message.tool_calls:
+                    # 添加助手消息
+                    assistant_msg = {
+                        "role": "assistant",
+                        "content": message.content or "",
+                        "tool_calls": [
+                            {
+                                "id": tc.id,
+                                "type": "function",
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments
+                                }
+                            }
+                            for tc in message.tool_calls
+                        ]
+                    }
+                    messages.append(assistant_msg)
+
+                    # 执行所有工具调用
+                    for tool_call in message.tool_calls:
+                        tool_name = tool_call.function.name
+                        try:
+                            arguments = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
+                        except json.JSONDecodeError:
+                            arguments = {}
+
+                        logger.info(f"执行工具: {tool_name}")
+
+                        # 查找对应的服务器并执行工具
+                        tool_result = None
+                        for server in self.servers:
+                            tools = await server.list_tools()
+                            if any(tool.name == tool_name for tool in tools):
+                                try:
+                                    tool_result = await server.execute_tool(tool_name, arguments)
+                                    break
+                                except Exception as e:
+                                    logger.error(f"执行工具 {tool_name} 出错: {e}")
+                                    tool_result = f"Error: {str(e)}"
+
+                        if tool_result is None:
+                            tool_result = f"未找到工具 {tool_name}"
+
+                        # 添加工具结果消息
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": str(tool_result)
+                        })
+
+                    # 获取最终响应
+                    final_response = self.llm_client.get_final_response(messages, openai_tools)
+                    final_message = final_response.choices[0].message
+
+                    if final_message.tool_calls:
+                        # 继续下一轮
+                        response = final_response
+                    else:
+                        # 获取最终内容并解析
+                        final_content = final_message.content or ""
+                        logger.info("URL内容提取完成，开始解析结果")
+
+                        # 尝试从返回内容中提取JSON
+                        topics = self._parse_topics_from_response(final_content)
+                        return topics
+                else:
+                    # 没有工具调用，直接返回内容
+                    final_content = message.content or ""
+                    topics = self._parse_topics_from_response(final_content)
+                    return topics
+
+            logger.warning("达到最大迭代次数，未能完成URL内容提取")
+            return []
+
+        except Exception as e:
+            logger.error(f"从URL提取主题失败: {e}", exc_info=True)
+            return []
+
     async def execute_step(self, step: Dict[str, Any], available_tools: List[Tool],
                           previous_results: List[Dict[str, Any]], user_topic: str) -> Dict[str, Any]:
         """执行单个步骤

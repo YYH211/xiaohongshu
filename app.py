@@ -4,7 +4,7 @@
 import os
 import logging
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, List
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
@@ -97,6 +97,10 @@ class TaskHistoryQueryRequest(BaseModel):
     end_date: str = None
     status: str = None
     limit: int = 100
+
+
+class BatchGeneratePublishRequest(BaseModel):
+    topics: List[str]
 
 
 # 路由
@@ -376,6 +380,199 @@ async def get_statistics() -> Dict[str, Any]:
         }
     except Exception as e:
         logger.error(f"获取统计信息失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class FetchTrendingTopicsRequest(BaseModel):
+    domain: str = ""
+
+
+class FetchTopicsFromUrlRequest(BaseModel):
+    url: str
+
+
+@app.post("/api/fetch-trending-topics")
+async def fetch_trending_topics(request_data: FetchTrendingTopicsRequest = None) -> Dict[str, Any]:
+    """获取今日热点新闻主题"""
+    try:
+        # 检查配置是否完整
+        config = config_manager.load_config()
+        if not config.get('llm_api_key'):
+            raise HTTPException(status_code=400, detail="请先完成配置")
+
+        # 获取领域参数
+        domain = request_data.domain if request_data else ""
+
+        # 创建内容生成器
+        generator = ContentGenerator(config)
+
+        # 初始化服务器
+        await generator.initialize_servers()
+
+        # 获取热点主题
+        topics = await generator.fetch_trending_topics(domain=domain)
+
+        # 清理资源
+        await generator.cleanup_servers()
+
+        if topics:
+            return {
+                'success': True,
+                'topics': topics
+            }
+        else:
+            raise HTTPException(status_code=500, detail='未能获取热点主题')
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"获取热点主题失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/fetch-topics-from-url")
+async def fetch_topics_from_url(request_data: FetchTopicsFromUrlRequest) -> Dict[str, Any]:
+    """从URL爬取内容并提取主题"""
+    try:
+        url = request_data.url
+
+        if not url:
+            raise HTTPException(status_code=400, detail="请提供URL")
+
+        # 检查配置是否完整
+        config = config_manager.load_config()
+        if not config.get('llm_api_key'):
+            raise HTTPException(status_code=400, detail="请先完成配置")
+
+        # 创建内容生成器
+        generator = ContentGenerator(config)
+
+        # 初始化服务器
+        await generator.initialize_servers()
+
+        # 从URL提取主题
+        topics = await generator.fetch_topics_from_url(url)
+
+        # 清理资源
+        await generator.cleanup_servers()
+
+        if topics:
+            return {
+                'success': True,
+                'topics': topics
+            }
+        else:
+            raise HTTPException(status_code=500, detail='未能从该URL提取主题')
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"从URL提取主题失败: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/batch-generate-and-publish")
+async def batch_generate_and_publish(request_data: BatchGeneratePublishRequest) -> Dict[str, Any]:
+    """批量生成内容并发布到小红书"""
+    try:
+        topics = request_data.topics
+
+        if not topics or len(topics) == 0:
+            raise HTTPException(status_code=400, detail="请选择至少一个主题")
+
+        # 检查配置是否完整
+        config = config_manager.load_config()
+        if not config.get('llm_api_key') or not config.get('xhs_mcp_url'):
+            raise HTTPException(status_code=400, detail="请先完成配置")
+
+        results = []
+        success_count = 0
+        failed_count = 0
+
+        # 对每个主题生成和发布
+        for topic in topics:
+            try:
+                # 创建内容生成器
+                generator = ContentGenerator(config)
+
+                # 执行内容生成和发布
+                result = await generator.generate_and_publish(topic)
+
+                if result.get('success'):
+                    success_count += 1
+                    response_data = {
+                        'topic': topic,
+                        'title': result.get('title', ''),
+                        'content': result.get('content', ''),
+                        'tags': result.get('tags', []),
+                        'images': result.get('images', []),
+                        'publish_status': result.get('publish_status', ''),
+                        'publish_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        'status': 'success'
+                    }
+
+                    # 保存到缓存
+                    task_record = {
+                        'topic': topic,
+                        'status': 'success',
+                        'progress': 100,
+                        'message': '发布成功',
+                        **response_data
+                    }
+                    cache_manager.add_task(task_record)
+
+                    results.append(response_data)
+                else:
+                    failed_count += 1
+                    error_msg = result.get('error', '生成失败')
+
+                    # 保存失败记录到缓存
+                    cache_manager.add_task({
+                        'topic': topic,
+                        'status': 'error',
+                        'progress': 0,
+                        'message': error_msg
+                    })
+
+                    results.append({
+                        'topic': topic,
+                        'status': 'error',
+                        'error': error_msg
+                    })
+
+            except Exception as e:
+                failed_count += 1
+                logger.error(f"处理主题 '{topic}' 失败: {e}", exc_info=True)
+
+                # 保存失败记录到缓存
+                cache_manager.add_task({
+                    'topic': topic,
+                    'status': 'error',
+                    'progress': 0,
+                    'message': str(e)
+                })
+
+                results.append({
+                    'topic': topic,
+                    'status': 'error',
+                    'error': str(e)
+                })
+
+        return {
+            'success': True,
+            'message': f'批量处理完成：成功 {success_count} 个，失败 {failed_count} 个',
+            'summary': {
+                'total': len(topics),
+                'success': success_count,
+                'failed': failed_count
+            },
+            'results': results
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"批量生成和发布失败: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

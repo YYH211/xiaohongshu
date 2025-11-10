@@ -1,12 +1,13 @@
 # Xiaohongshu AI Content Generation & Publishing System
 
-[中文](README_ZH.md) | English
+[中文](README.md) | English
 
 An AI-powered intelligent Xiaohongshu (Little Red Book) content generation and automatic publishing web application. It integrates multiple tool services through MCP (Model Context Protocol) to achieve a fully automated workflow from topic input to content publishing.
 
 In simple terms: Input a topic and AI handles everything for you, publishing directly to your Xiaohongshu account
 
 System main interface:
+![img.png](pages/img3.png)
 ![img.png](pages/img.png)
 ![img.png](pages/img_2.png)
 
@@ -20,6 +21,10 @@ System main interface:
 - 🚀 **One-Click Publishing** - Automatically publishes to Xiaohongshu platform after generation
 - 📊 **Real-time Progress** - Displays execution progress and status information
 - ✅ **Result Display** - Shows final published title, content, tags, images, etc.
+- 🔥 **Trending Topics Recommendation** - Automatically fetch today's trending news topics
+- 🎯 **Batch Generation & Publishing** - Support batch selection of multiple topics for one-click generation
+- 🌐 **URL Content Extraction** - Support inputting webpage links to crawl and extract topics
+- 🏷️ **Domain Quick Filter** - Provides quick filter buttons for AI, Funding, Papers, Robotics domains
 
 **A Quick Ad**
 
@@ -96,17 +101,65 @@ Recommend using Tavily as the search tool, which offers 1000 free search request
 
 ### 4. Generate Content
 
+The system provides two content generation methods:
+
+#### Method 1: Manual Topic Input
+
 1. Input a topic in the "Content Generation & Publishing" area
 2. Click the "🚀 Start Generation & Publishing" button
 3. View execution progress and final results on the right side
 
-#### Topic Examples
-
+**Topic Examples:**
 - "ByteDance's Doubao Model: Daily API calls exceed 30 trillion tokens, with impressive growth!"
 ![img.png](pages/img2.png)
-
 - "Transformer Architecture Explained"
 ![img.png](pages/img_3.png)
+
+#### Method 2: Trending Topics Auto-Generation (Recommended)
+
+The system provides an intelligent trending topics feature to help you quickly find quality content ideas:
+
+##### 1. Fetch Trending Topics by Domain
+
+In the "Today's Trending Topics" panel, click domain tags to quickly fetch popular topics in that field:
+
+- 🤖 **AI** - Artificial intelligence, large models, machine learning related trends
+- 💰 **Funding** - Investment and financing news, startup company updates
+- 📄 **Papers** - Latest research papers, academic progress
+- 🦾 **Robotics** - Robotics technology, automation related
+
+The system will automatically call web search tools to retrieve the 10 hottest news topics in that field from the past 24 hours.
+
+##### 2. Extract Topics from Webpage Links
+
+If you find a quality article or report, you can:
+
+1. Paste the URL in the "Or input webpage link to extract topics" input box
+2. Click the "🔍 Extract Topics" button
+3. The system will automatically crawl the webpage content and intelligently extract the 10 most valuable topics
+
+##### 3. Select Topics for Batch Generation
+
+After fetching trending topics:
+
+1. **Single/Multiple Selection** - Check the topics you're interested in (each topic includes title and summary)
+2. **Select All Function** - Click "✓ Select All" button to quickly select all topics
+3. **View Selection Count** - The page displays "Selected X topics" in real-time
+4. **Batch Generate** - Click "🚀 Batch Generate Selected Topics" button
+5. **View Results** - The system will generate and publish each topic sequentially, showing success/failure statistics
+
+##### 4. Real-time Progress Tracking
+
+- Selected topics automatically sync to the "Current Task" panel
+- Batch generation shows overall progress bar and detailed status
+- Each topic's generation result is saved in "Task History"
+- Failed tasks can be retried by clicking the "🔄 Retry" button
+
+**Usage Tips:**
+- Recommend using domain tags to quickly fetch daily trending topics first
+- When batch generating, suggest selecting 3-5 topics at a time to avoid excessive duration
+- You can view all generated content details in the history records
+- Support filtering historical tasks by date and status
 
 
 ## 📂 Project Structure
@@ -126,7 +179,13 @@ xhs_web_app/
 │
 ├── core/                       # Core functionality module
 │   ├── __init__.py
-│   └── content_generator.py    # Content generator (based on MCP tool execution)
+│   ├── content_generator.py    # Content generator (based on MCP tool execution)
+│   └── xhs_llm_client.py       # MCP client and LLM interaction
+│
+├── cache/                      # Cache module
+│   ├── __init__.py
+│   ├── cache_manager.py        # Task history cache manager
+│   └── task_history.json       # Task history records (auto-generated)
 │
 ├── static/                     # Static resources
 │   ├── css/
@@ -218,8 +277,15 @@ The system uses a 4-step workflow to automatically generate and publish content:
 | GET | `/` | Main page |
 | GET | `/api/config` | Get configuration (hides sensitive info) |
 | POST | `/api/config` | Save configuration |
+| POST | `/api/validate-model` | Validate if LLM model is available |
 | POST | `/api/test-login` | Test Xiaohongshu MCP connection |
-| POST | `/api/generate-and-publish` | Generate and publish content |
+| POST | `/api/generate-and-publish` | Generate and publish single topic |
+| POST | `/api/fetch-trending-topics` | Fetch today's trending topics (supports domain filter) |
+| POST | `/api/fetch-topics-from-url` | Crawl and extract topics from URL |
+| POST | `/api/batch-generate-and-publish` | Batch generate and publish multiple topics |
+| GET | `/api/history` | Get task history records |
+| DELETE | `/api/history/{task_id}` | Delete specified task record |
+| GET | `/api/history/statistics` | Get task statistics |
 
 ## 🛠️ Tech Stack
 

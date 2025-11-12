@@ -9,6 +9,7 @@ import tempfile
 import shutil
 from typing import Any, Dict, List, Optional
 from core.xhs_llm_client import Configuration, Server, LLMClient, Tool
+from core.server_manager import server_manager
 
 logger = logging.getLogger(__name__)
 
@@ -198,8 +199,16 @@ class ContentGenerator:
         try:
             logger.info(f"开始获取今日热点新闻主题{f'（{domain}领域）' if domain else ''}...")
 
-            # 获取可用工具
-            available_tools = await self.get_available_tools()
+            # 优先使用全局服务器管理器
+            if server_manager.is_initialized():
+                logger.info("使用全局服务器管理器")
+                self.servers = server_manager.get_servers()
+                self.llm_client = server_manager.get_llm_client()
+                available_tools = await server_manager.get_available_tools()
+            else:
+                logger.info("全局服务器未初始化,使用本地获取")
+                # 获取可用工具
+                available_tools = await self.get_available_tools()
 
             if not available_tools:
                 logger.error("没有可用的工具")
@@ -208,51 +217,162 @@ class ContentGenerator:
             # 将工具转换为OpenAI格式
             openai_tools = [tool.to_openai_tool() for tool in available_tools]
 
+            # 获取当前时间
+            from datetime import datetime, timezone, timedelta
+            # 使用中国时区 (UTC+8)
+            china_tz = timezone(timedelta(hours=8))
+            current_time = datetime.now(china_tz)
+            current_date_str = current_time.strftime('%Y年%m月%d日')
+            current_datetime_str = current_time.strftime('%Y年%m月%d日 %H:%M')
+
+            logger.info(f"当前时间: {current_datetime_str}")
+
             # 根据是否指定领域构建不同的提示词
             if domain:
-                system_prompt = f"""你是一个专业的新闻分析师，擅长发现和总结当前的热点话题。
-                请使用网络搜索工具查找今天（最近24小时内）关于「{domain}」领域最热门的新闻话题。
-                重点搜索：{domain}相关的最新进展、技术突破、行业动态、投融资消息等。
-                """
+                # 构建针对不同领域的搜索策略
+                domain_search_config = {
+                    "AI": {
+                        "keywords": ["AI", "人工智能", "大模型", "深度学习", "机器学习", "AGI"],
+                        "focus": "AI技术突破、AI应用、AI公司动态"
+                    },
+                    "融资": {
+                        "keywords": ["AI融资", "人工智能投资", "AI公司融资", "AI领域投资"],
+                        "focus": "AI领域的融资事件、投资动态、AI初创公司"
+                    },
+                    "论文": {
+                        "keywords": ["arXiv AI论文", "arXiv 人工智能", "arXiv machine learning", "arXiv deep learning", "最新AI论文"],
+                        "focus": "arXiv上AI领域的最新学术论文、研究成果、技术创新"
+                    },
+                    "机器人": {
+                        "keywords": ["AI机器人", "智能机器人", "机器人技术", "人形机器人", "工业机器人"],
+                        "focus": "AI驱动的机器人技术、机器人应用、机器人公司动态"
+                    }
+                }
 
-                user_prompt = f"""请搜索并列出今天「{domain}」领域最热门的10个新闻话题。对于每个话题，请提供：
-                1. 简洁的标题（15-20字）
-                2. 简短的摘要说明（30-50字）
+                # 获取领域配置,如果没有则使用通用AI搜索
+                config = domain_search_config.get(domain, {
+                    "keywords": [f"AI {domain}", f"人工智能 {domain}"],
+                    "focus": f"AI {domain}领域的最新动态"
+                })
 
-                请确保这些话题都是最新的、有热度的，并且与{domain}领域密切相关，适合在社交媒体上创作内容。
+                keywords_str = "、".join(config["keywords"])
 
-                搜索完成后，请按照以下JSON格式整理结果（注意：你的最终回复必须是纯JSON格式，不要包含任何其他文字）：
-                ```json
-                [
-                  {{
-                    "title": "话题标题",
-                    "summary": "话题摘要"
-                  }}
-                ]
-                ```
-                """
+                system_prompt = f"""你是一个专业的AI行业新闻分析师，擅长发现和总结AI领域的热点话题。
+
+【当前时间】{current_datetime_str}
+
+【领域定位】「{domain}」是人工智能(AI)大领域下的一个重要分支
+
+请使用网络搜索工具查找「{domain}」在过去24小时内（{current_date_str}）最热门的新闻话题。
+
+**搜索范围**：
+- 主题：{config["focus"]}
+- 关键词：{keywords_str}
+- 时间：{current_date_str}（最近24小时）
+
+**搜索要求**：
+1. 必须使用搜索工具获取最新信息
+2. 关注AI领域的{domain}相关内容
+3. 优先选择{current_date_str}发布的权威内容
+4. 确保信息的准确性和时效性
+"""
+
+                # 针对论文领域的特殊提示
+                if domain == "论文":
+                    user_prompt = f"""请搜索并列出arXiv上{current_date_str}最新发布的10篇AI相关论文。
+
+**搜索策略**：
+- 推荐关键词：{keywords_str}
+- 可以组合搜索：如"{config['keywords'][0]} {current_date_str}"、"arXiv AI 最新论文"
+- **重点**：优先搜索 arxiv.org 网站上的最新论文
+- 关注分类：cs.AI, cs.LG, cs.CV, cs.CL, cs.RO 等AI相关类别
+
+**信息来源**：
+- 主要来源：arXiv.org (https://arxiv.org)
+- 辅助来源：Papers with Code、AI科技媒体对论文的报道
+
+**内容要求**：
+对于每篇论文，请提供：
+1. 论文标题（15-20字,可以简化）
+2. 简短的研究摘要（30-50字,重点说明创新点和应用价值）
+
+请确保这些论文都是{current_date_str}或最近几天在arXiv上发布的最新研究，与AI领域密切相关，有学术价值和实用性，适合在社交媒体上创作科普内容。
+
+搜索完成后，请按照以下JSON格式整理结果（注意：你的最终回复必须是纯JSON格式，不要包含任何其他文字）：
+```json
+[
+  {{
+    "title": "论文标题",
+    "summary": "论文摘要"
+  }}
+]
+```
+"""
+                else:
+                    user_prompt = f"""请搜索并列出「{domain}」在{current_date_str}最热门的10个新闻话题。
+
+**搜索策略**：
+- 推荐关键词：{keywords_str}
+- 可以组合搜索：如"{config['keywords'][0]} {current_date_str}"、"{config['keywords'][0]} 今日"
+- 信息来源：
+  * AI领域：机器之心、量子位、新智元、AI科技评论
+  * 融资领域：36氪、投资界、创业邦、IT桔子
+  * 机器人领域：机器人大讲堂、机器人在线、IEEE Robotics
+
+**内容要求**：
+对于每个话题，请提供：
+1. 简洁的标题（15-20字）
+2. 简短的摘要说明（30-50字）
+
+请确保这些话题都是{current_date_str}的最新内容、与AI {domain}密切相关、有热度的，适合在社交媒体上创作内容。
+
+搜索完成后，请按照以下JSON格式整理结果（注意：你的最终回复必须是纯JSON格式，不要包含任何其他文字）：
+```json
+[
+  {{
+    "title": "话题标题",
+    "summary": "话题摘要"
+  }}
+]
+```
+"""
             else:
-                system_prompt = """你是一个专业的新闻分析师，擅长发现和总结当前的热点话题。
-                请使用网络搜索工具查找今天（最近24小时内）最热门的新闻话题。
-                重点关注：科技、AI、互联网、社交媒体等领域的热点新闻。
-                """
+                system_prompt = f"""你是一个专业的新闻分析师，擅长发现和总结当前的热点话题。
 
-                user_prompt = """请搜索并列出今天最热门的10个新闻话题。对于每个话题，请提供：
-                1. 简洁的标题（15-20字）
-                2. 简短的摘要说明（30-50字）
+【当前时间】{current_datetime_str}
 
-                请确保这些话题都是最新的、有热度的，适合在社交媒体上创作内容。
+请使用网络搜索工具查找过去24小时内（{current_date_str}）最热门的新闻话题。
+重点关注：科技、AI、互联网、社交媒体等领域的热点新闻。
 
-                搜索完成后，请按照以下JSON格式整理结果（注意：你的最终回复必须是纯JSON格式，不要包含任何其他文字）：
-                ```json
-                [
-                  {
-                    "title": "话题标题",
-                    "summary": "话题摘要"
-                  }
-                ]
-                ```
-                """
+**搜索要求**：
+1. 必须使用搜索工具获取最新信息
+2. 关注时效性，优先选择{current_date_str}发布的内容
+3. 确保信息的准确性和可靠性
+"""
+
+                user_prompt = f"""请搜索并列出{current_date_str}最热门的10个新闻话题。
+
+**搜索指引**：
+- 搜索关键词示例："今日热点", "最新新闻 {current_date_str}", "科技新闻"
+- 时间范围：过去24小时内
+- 信息来源：主流媒体、科技媒体、官方发布
+
+对于每个话题，请提供：
+1. 简洁的标题（15-20字）
+2. 简短的摘要说明（30-50字）
+
+请确保这些话题都是{current_date_str}的最新内容、有热度的，适合在社交媒体上创作内容。
+
+搜索完成后，请按照以下JSON格式整理结果（注意：你的最终回复必须是纯JSON格式，不要包含任何其他文字）：
+```json
+[
+  {
+    "title": "话题标题",
+    "summary": "话题摘要"
+  }
+]
+```
+"""
 
             messages = [
                 {"role": "system", "content": system_prompt},
@@ -409,8 +529,16 @@ class ContentGenerator:
         try:
             logger.info(f"开始从URL提取主题: {url}")
 
-            # 获取可用工具
-            available_tools = await self.get_available_tools()
+            # 优先使用全局服务器管理器
+            if server_manager.is_initialized():
+                logger.info("使用全局服务器管理器")
+                self.servers = server_manager.get_servers()
+                self.llm_client = server_manager.get_llm_client()
+                available_tools = await server_manager.get_available_tools()
+            else:
+                logger.info("全局服务器未初始化,使用本地获取")
+                # 获取可用工具
+                available_tools = await self.get_available_tools()
 
             if not available_tools:
                 logger.error("没有可用的工具")
@@ -780,13 +908,21 @@ class ContentGenerator:
         try:
             logger.info(f"开始生成关于「{topic}」的内容...")
 
-            # 获取可用工具
-            available_tools = await self.get_available_tools()
-
-            if available_tools is None or len(available_tools) == 0:
-                # 初始化服务器
-                await self.initialize_servers()
+            # 优先使用全局服务器管理器
+            if server_manager.is_initialized():
+                logger.info("使用全局服务器管理器")
+                self.servers = server_manager.get_servers()
+                self.llm_client = server_manager.get_llm_client()
+                available_tools = await server_manager.get_available_tools()
+            else:
+                logger.info("全局服务器未初始化,使用本地初始化")
+                # 获取可用工具
                 available_tools = await self.get_available_tools()
+
+                if available_tools is None or len(available_tools) == 0:
+                    # 初始化服务器
+                    await self.initialize_servers()
+                    available_tools = await self.get_available_tools()
 
             logger.info(f"总共可用工具数: {len(available_tools)}")
 
@@ -885,8 +1021,9 @@ class ContentGenerator:
             }
 
         finally:
-            # 清理资源
-            await self.cleanup_servers()
+            # 只有在使用本地服务器时才清理资源
+            if not server_manager.is_initialized():
+                await self.cleanup_servers()
 
     async def cleanup_servers(self):
         """清理服务器连接"""

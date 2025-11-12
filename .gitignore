@@ -23,7 +23,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-
+cache/task_history.json
 # Flask
 instance/
 .webassets-cache

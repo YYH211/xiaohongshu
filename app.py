@@ -16,6 +16,7 @@ from pydantic import BaseModel
 import requests
 
 from core.content_generator import ContentGenerator
+from core.server_manager import server_manager
 from config.config_manager import ConfigManager
 from cache.cache_manager import CacheManager
 
@@ -36,9 +37,29 @@ async def lifespan(app: FastAPI):
     # 启动时执行
     os.makedirs(os.path.join(BASE_DIR, 'config'), exist_ok=True)
     logger.info("应用启动，目录初始化完成")
+
+    # 尝试初始化全局 MCP 服务器(如果配置存在)
+    try:
+        config = config_manager.load_config()
+        if config.get('llm_api_key') and config.get('openai_base_url'):
+            logger.info("检测到配置文件,开始初始化全局 MCP 服务器...")
+            await server_manager.initialize(config)
+            logger.info("✅ 全局 MCP 服务器初始化完成,请求将直接使用已初始化的连接")
+        else:
+            logger.info("配置不完整,跳过 MCP 服务器初始化")
+    except Exception as e:
+        logger.warning(f"启动时初始化 MCP 服务器失败: {e}, 将在首次请求时初始化")
+
     yield
+
     # 关闭时执行
-    logger.info("应用关闭")
+    logger.info("应用关闭,清理资源...")
+    try:
+        await server_manager.cleanup()
+        logger.info("✅ 全局 MCP 服务器资源清理完成")
+    except Exception as e:
+        logger.error(f"清理资源失败: {e}")
+    logger.info("应用关闭完成")
 
 
 # 创建 FastAPI 应用
@@ -140,6 +161,18 @@ async def save_config(config_data: ConfigRequest) -> Dict[str, Any]:
         # 保存配置
         config_dict = config_data.model_dump()
         config_manager.save_config(config_dict)
+
+        # 重新初始化全局 MCP 服务器
+        try:
+            logger.info("配置已更新,重新初始化全局 MCP 服务器...")
+            # 先清理旧的服务器连接
+            await server_manager.cleanup()
+            # 初始化新的服务器连接
+            await server_manager.initialize(config_dict)
+            logger.info("✅ 全局 MCP 服务器重新初始化完成")
+        except Exception as e:
+            logger.error(f"重新初始化 MCP 服务器失败: {e}")
+            # 不阻止配置保存,只记录错误
 
         return {'success': True, 'message': '配置保存成功'}
 
@@ -400,20 +433,19 @@ async def fetch_trending_topics(request_data: FetchTrendingTopicsRequest = None)
         if not config.get('llm_api_key'):
             raise HTTPException(status_code=400, detail="请先完成配置")
 
+        # 如果全局服务器未初始化,先初始化
+        if not server_manager.is_initialized():
+            logger.info("全局服务器未初始化,开始初始化...")
+            await server_manager.initialize(config)
+
         # 获取领域参数
         domain = request_data.domain if request_data else ""
 
         # 创建内容生成器
         generator = ContentGenerator(config)
 
-        # 初始化服务器
-        await generator.initialize_servers()
-
-        # 获取热点主题
+        # 获取热点主题(会自动使用全局服务器管理器)
         topics = await generator.fetch_trending_topics(domain=domain)
-
-        # 清理资源
-        await generator.cleanup_servers()
 
         if topics:
             return {
@@ -444,17 +476,16 @@ async def fetch_topics_from_url(request_data: FetchTopicsFromUrlRequest) -> Dict
         if not config.get('llm_api_key'):
             raise HTTPException(status_code=400, detail="请先完成配置")
 
+        # 如果全局服务器未初始化,先初始化
+        if not server_manager.is_initialized():
+            logger.info("全局服务器未初始化,开始初始化...")
+            await server_manager.initialize(config)
+
         # 创建内容生成器
         generator = ContentGenerator(config)
 
-        # 初始化服务器
-        await generator.initialize_servers()
-
-        # 从URL提取主题
+        # 从URL提取主题(会自动使用全局服务器管理器)
         topics = await generator.fetch_topics_from_url(url)
-
-        # 清理资源
-        await generator.cleanup_servers()
 
         if topics:
             return {

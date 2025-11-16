@@ -3,9 +3,6 @@ const API_BASE = '/api';
 // 防抖函数
 let modelValidationTimeout = null;
 
-// 任务管理 - 重新设计
-let taskCardMap = {}; // { taskId: cardId } 映射任务ID到卡片ID
-
 // 折叠面板
 function togglePanel(panelId) {
     let panel, toggle;
@@ -230,161 +227,33 @@ async function testConnection() {
     }
 }
 
-// 更新进度 - 支持任务ID参数
+// 更新进度 - 仅更新当前任务显示
 function updateProgress(taskIdOrPercent, percentOrText, textOrUndefined) {
-    let taskId, percent, text;
+    let percent, text;
 
     // 兼容旧的调用方式 updateProgress(percent, text)
     if (typeof taskIdOrPercent === 'number' && typeof percentOrText === 'string') {
         // 旧方式：updateProgress(10, '开始...')
-        taskId = null;
         percent = taskIdOrPercent;
         text = percentOrText;
     } else {
         // 新方式：updateProgress(taskId, 10, '开始...')
-        taskId = taskIdOrPercent;
         percent = percentOrText;
         text = textOrUndefined;
     }
 
-    // 如果没有taskId，检查当前任务的taskId
-    if (!taskId) {
-        const currentTopicEl = document.getElementById('current-topic');
-        taskId = currentTopicEl ? currentTopicEl.dataset.taskId : null;
-    }
-
-    // 更新当前任务显示（如果是当前任务）
-    const currentTopicEl = document.getElementById('current-topic');
-    if (currentTopicEl && currentTopicEl.dataset.taskId === taskId) {
-        document.getElementById('progress-value').style.width = `${percent}%`;
-        document.getElementById('progress-text').textContent = text;
-    }
-
-    // 更新历史卡片（如果任务在历史中）
-    if (taskId && taskCardMap[taskId]) {
-        const cardId = taskCardMap[taskId];
-        const card = document.getElementById(cardId);
-        if (card) {
-            // 更新进度条
-            const progressBar = card.querySelector('.task-card-progress-value');
-            if (progressBar) {
-                progressBar.style.width = `${percent}%`;
-            }
-
-            // 更新进度文字
-            const progressText = card.querySelector('.task-card-progress-text');
-            if (progressText) {
-                progressText.textContent = text;
-            }
-
-            // 更新状态
-            let status = 'running';
-            let statusIcon = '⏳';
-            if (percent === 100) {
-                status = 'success';
-                statusIcon = '✅';
-            } else if (text.includes('失败') || text.includes('错误')) {
-                status = 'error';
-                statusIcon = '❌';
-            }
-
-            card.className = `task-card ${status}`;
-            const statusEl = card.querySelector('.task-card-status');
-            if (statusEl) {
-                statusEl.textContent = statusIcon;
-            }
-
-            // 如果变成错误状态，确保重试按钮显示
-            if (status === 'error') {
-                const retryDiv = card.querySelector('.task-card-retry');
-                if (retryDiv) {
-                    retryDiv.style.display = 'block';
-                }
-            }
-        }
-    }
+    // 更新当前任务显示
+    document.getElementById('progress-value').style.width = `${percent}%`;
+    document.getElementById('progress-text').textContent = text;
 }
 
 // 将当前任务添加到历史
+// 注意：此函数现在是空操作，因为任务历史由后端在完成时自动保存
+// 前端通过 loadTaskHistory() 从服务器加载历史记录
 function moveCurrentToHistory() {
-    const currentTopicEl = document.getElementById('current-topic');
-    const currentTopic = currentTopicEl.textContent;
-    const currentTaskId = currentTopicEl.dataset.taskId;
-    const currentProgress = parseInt(document.getElementById('progress-value').style.width) || 0;
-    const currentText = document.getElementById('progress-text').textContent;
-
-    // 如果当前任务不是初始状态，才添加到历史
-    if (currentTopic !== '等待任务开始...' && currentTaskId) {
-        const historyPanel = document.getElementById('history-panel');
-        const historyContainer = document.getElementById('task-history');
-
-        // 显示历史面板
-        historyPanel.style.display = 'block';
-
-        // 判断状态
-        let status = 'running';
-        let statusIcon = '⏳';
-        if (currentProgress === 100) {
-            status = 'success';
-            statusIcon = '✅';
-        } else if (currentText.includes('失败') || currentText.includes('错误')) {
-            status = 'error';
-            statusIcon = '❌';
-        }
-
-        // 创建历史卡片，使用唯一ID
-        const cardId = 'task-card-' + Date.now();
-        const card = document.createElement('div');
-        card.id = cardId;
-        card.className = `task-card ${status}`;
-        card.dataset.topic = currentTopic; // 保存主题用于重试
-
-        // 调试日志
-        console.log('创建任务卡片:', {
-            cardId,
-            topic: currentTopic,
-            status,
-            className: card.className,
-            progress: currentProgress,
-            text: currentText
-        });
-
-        card.innerHTML = `
-            <div class="task-card-header">
-                <div class="task-card-topic" title="${currentTopic}">${currentTopic}</div>
-                <div class="task-card-status">${statusIcon}</div>
-                <div class="task-card-delete" onclick="deleteTask('${cardId}')" title="删除任务">×</div>
-            </div>
-            <div class="task-card-progress">
-                <div class="task-card-progress-bar">
-                    <div class="task-card-progress-value" style="width: ${currentProgress}%"></div>
-                </div>
-                <div class="task-card-progress-text">${currentText}</div>
-            </div>
-            <div class="task-card-retry">
-                <button class="btn-retry" onclick="retryTask('${cardId}')">🔄 重试</button>
-            </div>
-        `;
-
-        // 插入到最前面
-        historyContainer.insertBefore(card, historyContainer.firstChild);
-
-        // 如果是错误状态，确保重试按钮显示
-        if (status === 'error') {
-            const retryDiv = card.querySelector('.task-card-retry');
-            if (retryDiv) {
-                retryDiv.style.display = 'block';
-            }
-        }
-
-        // 建立任务ID到卡片ID的映射
-        taskCardMap[currentTaskId] = cardId;
-
-        // 自动滚动到历史面板
-        setTimeout(() => {
-            historyPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }, 100);
-    }
+    // 不再需要客户端创建历史卡片
+    // 任务完成后会由后端自动保存到 cache_manager
+    // 用户打开历史模态框时会从服务器加载最新历史
 }
 
 // 开始生成 - 带任务ID追踪
@@ -400,67 +269,9 @@ async function startGenerate() {
     await executeGenerate(topic);
 }
 
-// 删除任务
-function deleteTask(cardId) {
-    const card = document.getElementById(cardId);
-    if (!card) {
-        showToast('任务卡片不存在', 'error');
-        return;
-    }
-
-    // 添加淡出动画
-    card.style.opacity = '0';
-    card.style.transform = 'translateX(-20px)';
-
-    // 延迟删除以显示动画
-    setTimeout(() => {
-        card.remove();
-
-        // 从映射中删除
-        for (let taskId in taskCardMap) {
-            if (taskCardMap[taskId] === cardId) {
-                delete taskCardMap[taskId];
-                break;
-            }
-        }
-
-        // 如果没有历史卡片了，隐藏历史面板
-        const historyContainer = document.getElementById('task-history');
-        if (historyContainer && historyContainer.children.length === 0) {
-            const historyPanel = document.getElementById('history-panel');
-            if (historyPanel) {
-                historyPanel.style.display = 'none';
-            }
-        }
-
-        showToast('任务已删除', 'info');
-    }, 300);
-}
-
-// 重试任务
-async function retryTask(cardId) {
-    const card = document.getElementById(cardId);
-    if (!card) {
-        showToast('任务卡片不存在', 'error');
-        return;
-    }
-
-    // 获取保存的主题
-    const topic = card.dataset.topic;
-    if (!topic) {
-        showToast('未找到任务主题', 'error');
-        return;
-    }
-
-    // 将当前任务移到历史（如果有的话）
-    moveCurrentToHistory();
-
-    // 移除旧的卡片
-    card.remove();
-
-    // 执行生成任务
-    await executeGenerate(topic);
-}
+// 旧的删除和重试函数已被移除
+// 现在使用 deleteTaskFromServer() 和 retryTaskFromHistory()
+// 这些函数在下方定义，直接操作服务器端数据
 
 // 执行生成任务的核心逻辑
 async function executeGenerate(topic) {
@@ -591,15 +402,12 @@ async function loadTaskHistory(startDate = null, endDate = null, status = null) 
         const response = await fetch(url);
         const data = await response.json();
 
-        const historyPanel = document.getElementById('history-panel');
         const historyContainer = document.getElementById('task-history');
 
         // 清空现有历史
         historyContainer.innerHTML = '';
 
         if (data.success && data.data && data.data.length > 0) {
-            // 显示历史面板
-            historyPanel.style.display = 'block';
 
             // 按日期分组
             const tasksByDate = groupTasksByDate(data.data);
@@ -609,9 +417,13 @@ async function loadTaskHistory(startDate = null, endDate = null, status = null) 
 
             console.log(`加载了 ${data.data.length} 条历史记录`);
         } else if (data.success && (!data.data || data.data.length === 0)) {
-            // 没有数据，显示提示信息
-            historyPanel.style.display = 'block';
-            historyContainer.innerHTML = '<div style="text-align: center; padding: 20px; color: #909399;">暂无任务记录</div>';
+            // 没有数据，显示空状态
+            historyContainer.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-state-icon">📭</div>
+                    <div class="empty-state-text">暂无任务记录</div>
+                </div>
+            `;
         } else {
             // 请求失败
             showToast('加载历史记录失败', 'error');
@@ -830,22 +642,33 @@ async function deleteTaskFromServer(taskId) {
         const data = await response.json();
 
         if (data.success) {
-            // 从DOM中移除
+            // 从DOM中移除卡片
             const card = document.querySelector(`[data-task-id="${taskId}"]`);
             if (card) {
                 card.style.opacity = '0';
                 card.style.transform = 'translateX(-20px)';
 
                 setTimeout(() => {
+                    // 获取父级日期分组
+                    const dateTasksContainer = card.parentElement;
+                    const dateGroup = dateTasksContainer ? dateTasksContainer.parentElement : null;
+
                     card.remove();
 
-                    // 如果没有历史卡片了，隐藏历史面板
+                    // 如果该日期分组下没有任务了，移除整个日期分组
+                    if (dateTasksContainer && dateTasksContainer.children.length === 0 && dateGroup) {
+                        dateGroup.remove();
+                    }
+
+                    // 如果所有日期分组都没了，显示空状态
                     const historyContainer = document.getElementById('task-history');
                     if (historyContainer && historyContainer.children.length === 0) {
-                        const historyPanel = document.getElementById('history-panel');
-                        if (historyPanel) {
-                            historyPanel.style.display = 'none';
-                        }
+                        historyContainer.innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-state-icon">📭</div>
+                                <div class="empty-state-text">暂无任务记录</div>
+                            </div>
+                        `;
                     }
                 }, 300);
             }
@@ -1262,7 +1085,40 @@ document.addEventListener('DOMContentLoaded', () => {
         baseUrlInput.addEventListener('input', debounceValidateModel);
     }
 
-    // 页面加载时加载配置和历史记录
+    // 页面加载时加载配置
     loadConfig();
-    loadTaskHistory();
+    // 注意：历史记录不在页面加载时加载，而是在打开历史模态框时加载
 });
+// ==================== 模态框功能 ====================
+
+// 打开历史任务模态框
+function openHistoryModal() {
+    const modal = document.getElementById('history-modal');
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden'; // 禁止背景滚动
+    
+    // 加载历史任务
+    loadTaskHistory();
+}
+
+// 关闭历史任务模态框
+function closeHistoryModal(event) {
+    // 如果点击的是遮罩层或关闭按钮,才关闭
+    if (!event || event.target.classList.contains('modal-overlay') || 
+        event.target.classList.contains('modal-close')) {
+        const modal = document.getElementById('history-modal');
+        modal.classList.remove('active');
+        document.body.style.overflow = ''; // 恢复背景滚动
+    }
+}
+
+// ESC键关闭模态框
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('history-modal');
+        if (modal.classList.contains('active')) {
+            closeHistoryModal({ target: modal });
+        }
+    }
+});
+

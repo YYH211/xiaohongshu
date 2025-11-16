@@ -172,42 +172,6 @@
                     </div>
                 </div>
 
-                <!-- 历史任务面板 -->
-                <div class="panel" id="history-panel" style="display: none;">
-                    <div class="panel-header" onclick="togglePanel('history')">
-                        <span>📝 任务历史</span>
-                        <span class="toggle-btn" id="history-toggle">▼</span>
-                    </div>
-                    <div class="panel-body" id="history-panel-body">
-                        <!-- 筛选器 -->
-                        <div class="history-filter">
-                            <div class="filter-row">
-                                <div class="filter-item">
-                                    <label>开始日期</label>
-                                    <input type="date" id="filter-start-date" class="filter-input">
-                                </div>
-                                <div class="filter-item">
-                                    <label>结束日期</label>
-                                    <input type="date" id="filter-end-date" class="filter-input">
-                                </div>
-                                <div class="filter-item">
-                                    <label>状态</label>
-                                    <select id="filter-status" class="filter-input">
-                                        <option value="">全部</option>
-                                        <option value="success">成功</option>
-                                        <option value="error">失败</option>
-                                        <option value="running">运行中</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="filter-actions">
-                                <button class="btn-filter" onclick="applyFilter()">🔍 筛选</button>
-                                <button class="btn-filter-reset" onclick="resetFilter()">🔄 重置</button>
-                            </div>
-                        </div>
-                        <div class="task-history" id="task-history"></div>
-                    </div>
-                </div>
 
                 <!-- 结果面板 -->
                 <div class="panel" id="result-panel" style="display: none;">
@@ -243,6 +207,54 @@
 
     <!-- 消息提示 -->
     <div id="toast-container"></div>
+
+    <!-- 历史任务浮动按钮 -->
+    <button class="btn-history" onclick="openHistoryModal()" title="查看任务历史">
+        📝
+    </button>
+
+    <!-- 历史任务模态框 -->
+    <div class="modal-overlay" id="history-modal" onclick="closeHistoryModal(event)">
+        <div class="modal-container" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <span>📝</span>
+                    <span>任务历史</span>
+                </div>
+                <button class="modal-close" onclick="closeHistoryModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <!-- 筛选器 -->
+                <div class="history-filter">
+                    <div class="filter-row">
+                        <div class="filter-item">
+                            <label>开始日期</label>
+                            <input type="date" id="filter-start-date" class="filter-input">
+                        </div>
+                        <div class="filter-item">
+                            <label>结束日期</label>
+                            <input type="date" id="filter-end-date" class="filter-input">
+                        </div>
+                        <div class="filter-item">
+                            <label>状态</label>
+                            <select id="filter-status" class="filter-input">
+                                <option value="">全部</option>
+                                <option value="success">成功</option>
+                                <option value="error">失败</option>
+                                <option value="running">运行中</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="filter-actions">
+                        <button class="btn-filter" onclick="applyFilter()">🔍 筛选</button>
+                        <button class="btn-filter-reset" onclick="resetFilter()">🔄 重置</button>
+                    </div>
+                </div>
+                <!-- 任务列表 -->
+                <div class="modal-task-history" id="task-history"></div>
+            </div>
+        </div>
+    </div>
 
     <script src="/static/js/app.js"></script>
 </body>

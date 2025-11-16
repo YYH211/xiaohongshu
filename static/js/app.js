@@ -862,9 +862,6 @@ async function deleteTaskFromServer(taskId) {
 
 // 从历史记录重试任务
 async function retryTaskFromHistory(taskId, topic) {
-    // 将当前任务移到历史
-    moveCurrentToHistory();
-
     // 删除旧的失败记录（从服务器和DOM）
     try {
         const response = await fetch(`${API_BASE}/history/${taskId}`, {
@@ -885,7 +882,7 @@ async function retryTaskFromHistory(taskId, topic) {
         // 即使删除失败，也继续执行重试
     }
 
-    // 执行生成任务
+    // 执行生成任务 (executeGenerate内部会调用moveCurrentToHistory)
     await executeGenerate(topic);
 }
 

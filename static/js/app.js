@@ -104,19 +104,78 @@ function showToast(message, type = 'info') {
     }, 4000);
 }
 
+// 加载配置
+async function loadConfig() {
+    try {
+        const response = await fetch(`${API_BASE}/config`);
+        const data = await response.json();
+
+        if (data.success && data.config) {
+            const config = data.config;
+
+            // 填充表单(只填充非空值)
+            if (config.llm_api_key) {
+                document.getElementById('llm_api_key').value = config.llm_api_key;
+                // 如果是脱敏值,设置占位符提示
+                if (config.llm_api_key.includes('*')) {
+                    document.getElementById('llm_api_key').placeholder = '已配置(留空不修改)';
+                }
+            }
+
+            if (config.openai_base_url) {
+                document.getElementById('openai_base_url').value = config.openai_base_url;
+            }
+
+            if (config.default_model) {
+                document.getElementById('default_model').value = config.default_model;
+            }
+
+            if (config.jina_api_key) {
+                document.getElementById('jina_api_key').value = config.jina_api_key;
+                if (config.jina_api_key.includes('*')) {
+                    document.getElementById('jina_api_key').placeholder = '已配置(留空不修改)';
+                }
+            }
+
+            if (config.tavily_api_key) {
+                document.getElementById('tavily_api_key').value = config.tavily_api_key;
+                if (config.tavily_api_key.includes('*')) {
+                    document.getElementById('tavily_api_key').placeholder = '已配置(留空不修改)';
+                }
+            }
+
+            if (config.xhs_mcp_url) {
+                document.getElementById('xhs_mcp_url').value = config.xhs_mcp_url;
+            }
+        }
+    } catch (error) {
+        console.error('加载配置失败:', error);
+    }
+}
+
 // 保存配置
 async function saveConfig() {
-    const config = {
-        llm_api_key: document.getElementById('llm_api_key').value.trim(),
-        openai_base_url: document.getElementById('openai_base_url').value.trim(),
-        default_model: document.getElementById('default_model').value,
-        jina_api_key: document.getElementById('jina_api_key').value.trim(),
-        tavily_api_key: document.getElementById('tavily_api_key').value.trim(),
-        xhs_mcp_url: document.getElementById('xhs_mcp_url').value.trim()
-    };
+    const config = {};
 
-    if (!config.llm_api_key || !config.openai_base_url || !config.xhs_mcp_url) {
-        showToast('请填写所有必填字段', 'error');
+    // 只收集非空且非脱敏占位符的值
+    const llmApiKey = document.getElementById('llm_api_key').value.trim();
+    const openaiBaseUrl = document.getElementById('openai_base_url').value.trim();
+    const defaultModel = document.getElementById('default_model').value.trim();
+    const jinaApiKey = document.getElementById('jina_api_key').value.trim();
+    const tavilyApiKey = document.getElementById('tavily_api_key').value.trim();
+    const xhsMcpUrl = document.getElementById('xhs_mcp_url').value.trim();
+
+    // 只添加非空且不包含*的字段(排除脱敏占位符)
+    if (llmApiKey && !llmApiKey.includes('*')) config.llm_api_key = llmApiKey;
+    if (openaiBaseUrl) config.openai_base_url = openaiBaseUrl;
+    if (defaultModel) config.default_model = defaultModel;
+    if (jinaApiKey && !jinaApiKey.includes('*')) config.jina_api_key = jinaApiKey;
+    if (tavilyApiKey && !tavilyApiKey.includes('*')) config.tavily_api_key = tavilyApiKey;
+    if (xhsMcpUrl) config.xhs_mcp_url = xhsMcpUrl;
+
+    // 检查是否有要保存的配置
+    if (Object.keys(config).length === 0) {
+        showToast('没有需要保存的配置', 'info');
         return;
     }
 
@@ -130,7 +189,9 @@ async function saveConfig() {
         const data = await response.json();
 
         if (data.success) {
-            showToast('配置保存成功', 'success');
+            showToast(data.message || '配置保存成功', 'success');
+            // 重新加载配置以获取最新的脱敏值
+            await loadConfig();
         } else {
             showToast(data.error || '保存失败', 'error');
         }
@@ -1204,6 +1265,7 @@ document.addEventListener('DOMContentLoaded', () => {
         baseUrlInput.addEventListener('input', debounceValidateModel);
     }
 
-    // 页面加载时加载历史记录
+    // 页面加载时加载配置和历史记录
+    loadConfig();
     loadTaskHistory();
 });

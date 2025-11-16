@@ -89,12 +89,12 @@ cache_manager = CacheManager()
 
 # Pydantic 模型
 class ConfigRequest(BaseModel):
-    llm_api_key: str
-    openai_base_url: str
-    default_model: str
-    jina_api_key: str = ""
-    tavily_api_key: str = ""
-    xhs_mcp_url: str = ""
+    llm_api_key: str = None
+    openai_base_url: str = None
+    default_model: str = None
+    jina_api_key: str = None
+    tavily_api_key: str = None
+    xhs_mcp_url: str = None
 
 
 class TestLoginRequest(BaseModel):
@@ -133,18 +133,11 @@ async def index(request: Request):
 
 @app.get("/api/config")
 async def get_config() -> Dict[str, Any]:
-    """获取配置信息（隐藏敏感信息）"""
+    """获取配置信息（密钥已脱敏）"""
     try:
-        config = config_manager.load_config()
-        safe_config = {
-            'llm_api_key': '***' if config.get('llm_api_key') else '',
-            'openai_base_url': config.get('openai_base_url', ''),
-            'default_model': config.get('default_model', ''),
-            'jina_api_key': '***' if config.get('jina_api_key') else '',
-            'tavily_api_key': '***' if config.get('tavily_api_key') else '',
-            'xhs_mcp_url': config.get('xhs_mcp_url', '')
-        }
-        return {'success': True, 'config': safe_config}
+        # 使用脱敏模式加载配置
+        config = config_manager.load_config(mask_sensitive=True)
+        return {'success': True, 'config': config}
     except Exception as e:
         logger.error(f"获取配置失败: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -152,15 +145,23 @@ async def get_config() -> Dict[str, Any]:
 
 @app.post("/api/config")
 async def save_config(config_data: ConfigRequest) -> Dict[str, Any]:
-    """保存配置"""
+    """保存配置(支持部分更新)"""
     try:
-        # 验证必填字段
-        if not config_data.llm_api_key or not config_data.openai_base_url or not config_data.default_model:
-            raise HTTPException(status_code=400, detail="缺少必填字段")
+        # 将请求数据转换为字典,排除未设置的字段
+        config_dict = config_data.model_dump(exclude_unset=True)
 
-        # 保存配置
-        config_dict = config_data.model_dump()
-        config_manager.save_config(config_dict)
+        # 过滤掉脱敏的占位符(以*开头的值不更新)
+        filtered_config = {
+            k: v for k, v in config_dict.items()
+            if v and not (isinstance(v, str) and '*' in v)
+        }
+
+        # 如果没有要更新的字段
+        if not filtered_config:
+            return {'success': True, 'message': '没有需要更新的配置'}
+
+        # 保存配置(支持部分更新)
+        config_manager.save_config(filtered_config)
 
         # 重新初始化全局 MCP 服务器
         try:

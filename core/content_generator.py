@@ -7,6 +7,8 @@ import logging
 import os
 import tempfile
 import shutil
+import asyncio
+import httpx
 from typing import Any, Dict, List, Optional
 from core.xhs_llm_client import Configuration, Server, LLMClient, Tool
 from core.server_manager import server_manager
@@ -78,6 +80,73 @@ class ContentGenerator:
             raise
 
         return temp_path, True
+
+    async def validate_image_urls(self, image_urls: List[str], timeout: float = 10.0) -> List[str]:
+        """验证图片 URL 的有效性,返回可访问的图片 URL 列表
+
+        Args:
+            image_urls: 待验证的图片 URL 列表
+            timeout: 每个 URL 的超时时间(秒)
+
+        Returns:
+            List[str]: 有效的图片 URL 列表
+        """
+        if not image_urls:
+            return []
+
+        valid_urls = []
+
+        async def check_url(url: str) -> Optional[str]:
+            """检查单个 URL 是否可访问且为图片"""
+            try:
+                # 跳过明显无效的 URL
+                if not url or not url.startswith(('http://', 'https://')):
+                    logger.warning(f"跳过无效URL格式: {url}")
+                    return None
+
+                # 检查是否为占位符
+                if any(placeholder in url.lower() for placeholder in ['example.com', 'placeholder', 'image1.jpg', 'image2.jpg', 'image3.jpg', 'test.jpg']):
+                    logger.warning(f"跳过占位符URL: {url}")
+                    return None
+
+                async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+                    # 使用 HEAD 请求减少流量
+                    response = await client.head(url, headers={
+                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+                    })
+
+                    # 检查状态码
+                    if response.status_code != 200:
+                        logger.warning(f"图片URL返回非200状态码 {response.status_code}: {url}")
+                        return None
+
+                    # 检查 Content-Type
+                    content_type = response.headers.get('content-type', '').lower()
+                    if not content_type.startswith('image/'):
+                        logger.warning(f"URL不是图片类型 (Content-Type: {content_type}): {url}")
+                        return None
+
+                    logger.info(f"✓ 图片URL有效: {url}")
+                    return url
+
+            except httpx.TimeoutException:
+                logger.warning(f"图片URL访问超时: {url}")
+                return None
+            except Exception as e:
+                logger.warning(f"图片URL验证失败 {url}: {e}")
+                return None
+
+        # 并发检查所有 URL
+        tasks = [check_url(url) for url in image_urls]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # 收集有效的 URL
+        for result in results:
+            if isinstance(result, str) and result:
+                valid_urls.append(result)
+
+        logger.info(f"图片URL验证完成: {len(valid_urls)}/{len(image_urls)} 个有效")
+        return valid_urls
 
     def get_research_plan(self, user_topic: str) -> List[Dict[str, Any]]:
         """根据用户主题生成研究计划"""
@@ -804,20 +873,57 @@ class ContentGenerator:
 
                             logger.info(f"执行工具: {tool_name} 参数: {arguments}")
 
-                            # 查找对应的服务器并执行工具
-                            tool_result = None
-                            for server in self.servers:
-                                tools = await server.list_tools()
-                                if any(tool.name == tool_name for tool in tools):
-                                    try:
-                                        tool_result = await server.execute_tool(tool_name, arguments)
-                                        break
-                                    except Exception as e:
-                                        logger.error(f"执行工具 {tool_name} 出错: {e}")
-                                        tool_result = f"Error: {str(e)}"
+                            # 🔍 特殊处理: 在发布前验证图片URL
+                            if tool_name == "publish_content" and "images" in arguments:
+                                original_images = arguments.get("images", [])
+                                logger.info(f"🔍 开始验证 {len(original_images)} 个图片URL...")
 
-                            if tool_result is None:
-                                tool_result = f"未找到工具 {tool_name}"
+                                valid_images = await self.validate_image_urls(original_images)
+
+                                if len(valid_images) < len(original_images):
+                                    logger.warning(f"⚠️ 部分图片URL无效: {len(original_images) - len(valid_images)} 个被过滤")
+
+                                if len(valid_images) == 0:
+                                    tool_result = "错误: 所有图片URL均无效，无法发布。请确保图片链接可访问。"
+                                    logger.error("❌ 图片验证失败: 没有有效的图片URL")
+                                    # 不执行实际的发布调用
+                                elif len(valid_images) < 1:
+                                    tool_result = f"错误: 有效图片数量不足({len(valid_images)}个)，小红书至少需要1张图片才能发布。"
+                                    logger.error(f"❌ 图片数量不足: 只有 {len(valid_images)} 个有效图片")
+                                else:
+                                    # 更新参数中的图片列表为验证后的有效URL
+                                    arguments["images"] = valid_images
+                                    logger.info(f"✅ 图片验证通过，使用 {len(valid_images)} 个有效图片URL")
+
+                                    # 执行发布工具
+                                    tool_result = None
+                                    for server in self.servers:
+                                        tools = await server.list_tools()
+                                        if any(tool.name == tool_name for tool in tools):
+                                            try:
+                                                tool_result = await server.execute_tool(tool_name, arguments)
+                                                break
+                                            except Exception as e:
+                                                logger.error(f"执行工具 {tool_name} 出错: {e}")
+                                                tool_result = f"Error: {str(e)}"
+
+                                    if tool_result is None:
+                                        tool_result = f"未找到工具 {tool_name}"
+                            else:
+                                # 其他工具正常执行
+                                tool_result = None
+                                for server in self.servers:
+                                    tools = await server.list_tools()
+                                    if any(tool.name == tool_name for tool in tools):
+                                        try:
+                                            tool_result = await server.execute_tool(tool_name, arguments)
+                                            break
+                                        except Exception as e:
+                                            logger.error(f"执行工具 {tool_name} 出错: {e}")
+                                            tool_result = f"Error: {str(e)}"
+
+                                if tool_result is None:
+                                    tool_result = f"未找到工具 {tool_name}"
 
                             # 检测是否是发布工具，并且是否成功
                             if tool_name == "publish_content":

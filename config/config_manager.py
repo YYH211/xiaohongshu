@@ -34,8 +34,11 @@ class ConfigManager:
         self.servers_config_file = self.config_dir / 'servers_config.json'
         self.env_file = self.config_dir / '.env'
 
-    def load_config(self) -> Dict[str, Any]:
+    def load_config(self, mask_sensitive: bool = False) -> Dict[str, Any]:
         """加载应用配置
+
+        Args:
+            mask_sensitive: 是否脱敏敏感信息(仅用于前端显示)
 
         Returns:
             配置字典
@@ -43,7 +46,19 @@ class ConfigManager:
         if self.config_file.exists():
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    config = json.load(f)
+
+                # 如果需要脱敏(创建副本,不修改原始数据)
+                if mask_sensitive:
+                    import copy
+                    masked_config = copy.deepcopy(config)
+                    sensitive_fields = ['llm_api_key', 'jina_api_key', 'tavily_api_key']
+                    for field in sensitive_fields:
+                        if field in masked_config and masked_config[field]:
+                            masked_config[field] = self._mask_sensitive_value(masked_config[field])
+                    return masked_config
+
+                return config
             except Exception as e:
                 logger.error(f"加载配置失败: {e}")
                 return {}
@@ -59,15 +74,16 @@ class ConfigManager:
             是否保存成功
         """
         try:
+            # 如果是部分更新,先加载现有配置再合并
+            existing_config = self.load_config()
+            merged_config = {**existing_config, **config}
+
             # 保存到JSON配置文件
             with open(self.config_file, 'w', encoding='utf-8') as f:
-                json.dump(config, f, indent=2, ensure_ascii=False)
-
-            # 同时保存到.env文件
-            self._save_to_env(config)
+                json.dump(merged_config, f, indent=2, ensure_ascii=False)
 
             # 更新servers_config.json
-            self._update_servers_config(config)
+            self._update_servers_config(merged_config)
 
             logger.info("配置保存成功")
             return True
@@ -76,30 +92,21 @@ class ConfigManager:
             logger.error(f"保存配置失败: {e}")
             return False
 
-    def _save_to_env(self, config: Dict[str, Any]):
-        """保存配置到.env文件
+    def _mask_sensitive_value(self, value: str) -> str:
+        """脱敏敏感信息
 
         Args:
-            config: 配置字典
+            value: 原始值
+
+        Returns:
+            脱敏后的值
         """
-        env_content = f"""# LLM API Configuration
-            LLM_API_KEY={config.get('llm_api_key', '')}
-            OPENAI_BASE_URL={config.get('openai_base_url', '')}
-            
-            # Default Model Configuration
-            DEFAULT_MODEL={config.get('default_model', 'claude-sonnet-4-20250514')}
-            
-            # Jina API Configuration
-            JINA_API_KEY={config.get('jina_api_key', '')}
-            
-            # Tavily API Configuration
-            TAVILY_API_KEY={config.get('tavily_api_key', '')}
-            
-            # XHS MCP Service Configuration
-            XHS_MCP_URL={config.get('xhs_mcp_url', '')}
-            """
-        with open(self.env_file, 'w', encoding='utf-8') as f:
-            f.write(env_content)
+        if not value:
+            return ''
+        # 只显示前4个和后4个字符
+        if len(value) <= 8:
+            return '*' * len(value)
+        return f"{value[:4]}{'*' * (len(value) - 8)}{value[-4:]}"
 
     def _update_servers_config(self, config: Dict[str, Any]):
         """更新MCP服务器配置文件

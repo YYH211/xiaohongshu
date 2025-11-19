@@ -148,8 +148,11 @@ class ContentGenerator:
         logger.info(f"图片URL验证完成: {len(valid_urls)}/{len(image_urls)} 个有效")
         return valid_urls
 
-    def get_research_plan(self, user_topic: str) -> List[Dict[str, Any]]:
-        """根据用户主题生成研究计划"""
+    def get_research_plan(self, user_topic: str, content_type: str = "general") -> List[Dict[str, Any]]:
+        """根据用户主题和内容类型生成研究计划"""
+
+        if content_type == "paper_analysis":
+            return self.get_paper_analysis_plan(user_topic)
         return [
             {
                 "id": "step1",
@@ -357,7 +360,7 @@ class ContentGenerator:
 - 关注分类：cs.AI, cs.LG, cs.CV, cs.CL, cs.RO 等AI相关类别
 
 **信息来源**：
-- 主要来源：arXiv.org (https://arxiv.org)
+- 主要来源：调用搜索工具搜索网页(https://arxiv.org/search/?query=llm&searchtype=all&abstracts=show&order=-announced_date_first&size=50)
 - 辅助来源：Papers with Code、AI科技媒体对论文的报道
 
 **内容要求**：
@@ -621,7 +624,7 @@ class ContentGenerator:
             请使用网络爬取工具访问指定的URL，读取页面内容，然后分析提取出其中最有价值的主题。
             """
 
-            user_prompt = f"""请访问以下网页并提取其中最有价值的10个主题：
+            user_prompt = f"""请访问以下网页并提取其中最有价值的20个主题：
 
             URL: {url}
 
@@ -1002,17 +1005,18 @@ class ContentGenerator:
                 "success": False
             }
 
-    async def generate_and_publish(self, topic: str) -> Dict[str, Any]:
+    async def generate_and_publish(self, topic: str, content_type: str = "general") -> Dict[str, Any]:
         """生成内容并发布到小红书
 
         Args:
             topic: 用户输入的主题
+            content_type: 内容类型 ("general" 或 "paper_analysis")
 
         Returns:
             生成和发布结果
         """
         try:
-            logger.info(f"开始生成关于「{topic}」的内容...")
+            logger.info(f"开始生成关于「{topic}」的内容，类型：{content_type}...")
 
             # 优先使用全局服务器管理器
             if server_manager.is_initialized():
@@ -1033,7 +1037,7 @@ class ContentGenerator:
             logger.info(f"总共可用工具数: {len(available_tools)}")
 
             # 获取研究计划
-            research_plan = self.get_research_plan(topic)
+            research_plan = self.get_research_plan(topic, content_type)
 
             # 执行每个步骤
             results = []
@@ -1138,3 +1142,71 @@ class ContentGenerator:
                 await server.cleanup()
             except Exception as e:
                 logger.warning(f"清理警告: {e}")
+
+    def get_paper_analysis_plan(self, user_topic: str) -> List[Dict[str, Any]]:
+        """生成论文分析专用工作流"""
+        return [
+            {
+                "id": "step1_paper",
+                "title": f"「{user_topic}」领域论文检索与分析",
+                "description": (
+                    f"1. 使用搜索工具搜索「{user_topic}」相关的最新学术论文\n"
+                    f"2. 搜索策略：\n"
+                    f"   - 使用关键词：\"site:arxiv.org {user_topic}\" 搜索arXiv论文\n"
+                    f"   - 搜索 \"{user_topic} paper research study\" 获取相关研究\n"
+                    f"   - 重点关注最近1-2年的高影响力论文\n"
+                    f"3. 筛选标准：\n"
+                    f"   - 优先选择高引用量、知名会议/期刊的论文\n"
+                    f"   - 关注技术创新点和实际应用价值\n"
+                    f"   - 收集2-3篇最具代表性的论文\n"
+                    f"4. 信息收集：\n"
+                    f"   - 论文标题、作者、发表时间\n"
+                    f"   - 核心摘要和研究问题\n"
+                    f"   - 主要创新点和贡献\n"
+                    f"   - 实验结果和关键图表\n"
+                    f"   - 论文全文链接"
+                ),
+                "depends on": []
+            },
+            {
+                "id": "step2_analysis",
+                "title": "论文深度解读与内容生成",
+                "description": (
+                    "1. 按照以下标准格式生成论文分析内容：\n"
+                    "   📚 **标题**: 论文核心价值的通俗化表达\n"
+                    "   📝 **核心摘要**: 2-3句话概括论文要解决的问题和主要发现\n"
+                    "   💡 **主要贡献**: 3个创新点（技术突破、方法创新、应用价值）\n"
+                    "   🚀 **未来发展**: 技术改进方向、潜在应用场景、商业化前景\n"
+                    "   🔮 **展望**: 个人观点、行业影响预期、后续研究方向\n"
+                    "   📖 **论文链接**: 原始论文的完整链接\n"
+                    "2. 语言要求：\n"
+                    "   - 通俗易懂，避免专业术语堆砌\n"
+                    "   - 适当使用emoji表情增加可读性\n"
+                    "   - 保持客观准确，不夸大研究结果\n"
+                    "3. 内容质量：\n"
+                    "   - 长度控制在800-1200字\n"
+                    "   - 突出论文的创新价值和应用意义\n"
+                    "   - 提供具体的技术细节和数据支撑"
+                ),
+                "depends on": ["step1_paper"]
+            },
+            {
+                "id": "step3_format",
+                "title": "小红书格式适配与发布",
+                "description": (
+                    "1. 将论文分析内容适配小红书格式：\n"
+                    "   - 标题突出论文的核心价值，保留「论文分享」标识\n"
+                    "   - 正文移除#标签，改为自然语言表达\n"
+                    "   - 提取5个精准标签（学术性+科普性+热点性）\n"
+                    "   - 确保包含2-3张论文相关图片（图表、架构图、截图）\n"
+                    "2. 标签示例：#AI研究 #学术论文 #科技前沿 #知识分享 #人工智能\n"
+                    "3. 内容要求：\n"
+                    "   - 保持学术严谨性同时兼顾可读性\n"
+                    "   - 突出研究的创新点和实用价值\n"
+                    "   - 避免过于技术化的表述\n"
+                    "4. 直接使用publish_content工具发布到小红书\n"
+                    "5. 确保图片链接有效且与论文内容相关"
+                ),
+                "depends on": ["step1_paper", "step2_analysis"]
+            }
+        ]

@@ -10,16 +10,14 @@ body {
     background: #f5f7fa;
     color: #2c3e50;
     line-height: 1.6;
-    overflow: hidden; /* 禁止页面滚动 */
-    height: 100vh; /* 固定高度 */
+    min-height: 100vh; /* 最小高度为视口高度 */
 }
 
 /* 应用容器 */
 .app-container {
-    height: 100vh;
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
-    overflow: hidden; /* 禁止滚动 */
 }
 
 /* 顶部导航 */
@@ -60,8 +58,7 @@ body {
     margin: 0 auto;
     padding: 24px;
     gap: 24px;
-    overflow: hidden; /* 禁止滚动 */
-    height: calc(100vh - 60px); /* 减去导航栏高度 */
+    min-height: calc(100vh - 60px); /* 最小高度为视口高度减去导航栏 */
 }
 
 /* 左侧边栏 */
@@ -760,13 +757,54 @@ body {
     display: flex;
     flex-direction: column;
     gap: 24px;
-    overflow: hidden; /* 禁止滚动，保持固定高度 */
-    height: 100%;
+    overflow-y: auto; /* 允许滚动 */
+    min-height: 100%;
+    padding-right: 8px; /* 给滚动条留空间 */
+}
+
+/* 右侧内容区滚动条美化 */
+.content-area::-webkit-scrollbar {
+    width: 6px;
+}
+
+.content-area::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.content-area::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 3px;
+}
+
+.content-area::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
 }
 
 .input-large {
     padding: 12px 16px !important;
     font-size: 15px !important;
+}
+
+/* 内容类型选择器 */
+.content-type-select {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e8eaed;
+    border-radius: 6px;
+    font-size: 14px;
+    background: #fff;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.content-type-select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.content-type-select:hover {
+    border-color: #667eea;
 }
 
 .input-hint {

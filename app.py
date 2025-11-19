@@ -111,6 +111,7 @@ class ValidateModelRequest(BaseModel):
 
 class GeneratePublishRequest(BaseModel):
     topic: str
+    content_type: str = "general"  # "general" 或 "paper_analysis"
 
 
 class TaskHistoryQueryRequest(BaseModel):
@@ -122,6 +123,7 @@ class TaskHistoryQueryRequest(BaseModel):
 
 class BatchGeneratePublishRequest(BaseModel):
     topics: List[str]
+    content_type: str = "general"  # "general" 或 "paper_analysis"
 
 
 # 路由
@@ -287,9 +289,14 @@ async def generate_and_publish(request_data: GeneratePublishRequest) -> Dict[str
     """生成内容并发布到小红书"""
     try:
         topic = request_data.topic
+        content_type = request_data.content_type
 
         if not topic:
             raise HTTPException(status_code=400, detail="请输入主题")
+
+        # 验证内容类型
+        if content_type not in ["general", "paper_analysis"]:
+            raise HTTPException(status_code=400, detail="内容类型必须是 'general' 或 'paper_analysis'")
 
         # 检查配置是否完整
         config = config_manager.load_config()
@@ -300,7 +307,7 @@ async def generate_and_publish(request_data: GeneratePublishRequest) -> Dict[str
         generator = ContentGenerator(config)
 
         # 异步执行内容生成和发布
-        result = await generator.generate_and_publish(topic)
+        result = await generator.generate_and_publish(topic, content_type)
 
         if result.get('success'):
             response_data = {
@@ -508,9 +515,14 @@ async def batch_generate_and_publish(request_data: BatchGeneratePublishRequest) 
     """批量生成内容并发布到小红书"""
     try:
         topics = request_data.topics
+        content_type = request_data.content_type
 
         if not topics or len(topics) == 0:
             raise HTTPException(status_code=400, detail="请选择至少一个主题")
+
+        # 验证内容类型
+        if content_type not in ["general", "paper_analysis"]:
+            raise HTTPException(status_code=400, detail="内容类型必须是 'general' 或 'paper_analysis'")
 
         # 检查配置是否完整
         config = config_manager.load_config()
@@ -528,7 +540,7 @@ async def batch_generate_and_publish(request_data: BatchGeneratePublishRequest) 
                 generator = ContentGenerator(config)
 
                 # 执行内容生成和发布
-                result = await generator.generate_and_publish(topic)
+                result = await generator.generate_and_publish(topic, content_type)
 
                 if result.get('success'):
                     success_count += 1

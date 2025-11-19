@@ -259,6 +259,7 @@ function moveCurrentToHistory() {
 // 开始生成 - 带任务ID追踪
 async function startGenerate() {
     const topic = document.getElementById('topic').value.trim();
+    const contentType = document.getElementById('content-type').value;
 
     if (!topic) {
         showToast('请输入主题', 'error');
@@ -266,7 +267,7 @@ async function startGenerate() {
     }
 
     // 执行生成任务
-    await executeGenerate(topic);
+    await executeGenerate(topic, contentType);
 }
 
 // 旧的删除和重试函数已被移除
@@ -274,7 +275,7 @@ async function startGenerate() {
 // 这些函数在下方定义，直接操作服务器端数据
 
 // 执行生成任务的核心逻辑
-async function executeGenerate(topic) {
+async function executeGenerate(topic, contentType = "general") {
     // 创建新任务ID
     const taskId = 'task-' + Date.now();
 
@@ -299,7 +300,7 @@ async function executeGenerate(topic) {
         const response = await fetch(`${API_BASE}/generate-and-publish`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ topic })
+            body: JSON.stringify({ topic, content_type: contentType })
         });
 
         // 模拟进度更新
@@ -990,10 +991,11 @@ async function batchGenerate() {
     showToast(`开始批量处理 ${selectedTopicTitles.length} 个主题...`, 'info');
 
     try {
+        const contentType = document.getElementById('content-type').value;
         const response = await fetch(`${API_BASE}/batch-generate-and-publish`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ topics: selectedTopicTitles })
+            body: JSON.stringify({ topics: selectedTopicTitles, content_type: contentType })
         });
 
         // 模拟进度更新

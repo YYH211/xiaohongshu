@@ -146,6 +146,14 @@
                                 <label>输入主题 <span class="required">*</span></label>
                                 <input type="text" id="topic" placeholder="例如：DeepSeek R1 最新进展、Claude 3.5 使用体验、AI 论文解读">
                             </div>
+                            <div class="input-group">
+                                <label>内容类型 <span class="required">*</span></label>
+                                <select id="content-type" class="content-type-select">
+                                    <option value="general">通用内容生成</option>
+                                    <option value="paper_analysis">📄 论文分析</option>
+                                </select>
+                                <span class="input-hint">💡 论文分析模式专门用于解读学术论文，提供深度分析</span>
+                            </div>
                             <button class="btn btn-generate" onclick="startGenerate()">
                                 🚀 开始生成并发布
                             </button>

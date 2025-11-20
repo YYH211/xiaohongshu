@@ -3,6 +3,7 @@
 """
 import os
 import logging
+import asyncio
 from datetime import datetime
 from typing import Dict, Any, List
 from contextlib import asynccontextmanager
@@ -512,7 +513,7 @@ async def fetch_topics_from_url(request_data: FetchTopicsFromUrlRequest) -> Dict
 
 @app.post("/api/batch-generate-and-publish")
 async def batch_generate_and_publish(request_data: BatchGeneratePublishRequest) -> Dict[str, Any]:
-    """批量生成内容并发布到小红书"""
+    """批量生成内容并发布到小红书（并发控制：最多同时5个任务）"""
     try:
         topics = request_data.topics
         content_type = request_data.content_type
@@ -529,78 +530,88 @@ async def batch_generate_and_publish(request_data: BatchGeneratePublishRequest) 
         if not config.get('llm_api_key') or not config.get('xhs_mcp_url'):
             raise HTTPException(status_code=400, detail="请先完成配置")
 
-        results = []
-        success_count = 0
-        failed_count = 0
+        # 创建信号量，限制最多同时运行5个任务
+        semaphore = asyncio.Semaphore(5)
 
-        # 对每个主题生成和发布
-        for topic in topics:
-            try:
-                # 创建内容生成器
-                generator = ContentGenerator(config)
+        async def process_single_topic(topic: str):
+            """处理单个主题（带信号量控制）"""
+            async with semaphore:
+                try:
+                    logger.info(f"开始处理主题: {topic}")
 
-                # 执行内容生成和发布
-                result = await generator.generate_and_publish(topic, content_type)
+                    # 创建内容生成器
+                    generator = ContentGenerator(config)
 
-                if result.get('success'):
-                    success_count += 1
-                    response_data = {
-                        'topic': topic,
-                        'title': result.get('title', ''),
-                        'content': result.get('content', ''),
-                        'tags': result.get('tags', []),
-                        'images': result.get('images', []),
-                        'publish_status': result.get('publish_status', ''),
-                        'publish_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                        'status': 'success'
-                    }
+                    # 执行内容生成和发布
+                    result = await generator.generate_and_publish(topic, content_type)
 
-                    # 保存到缓存
-                    task_record = {
-                        'topic': topic,
-                        'status': 'success',
-                        'progress': 100,
-                        'message': '发布成功',
-                        **response_data
-                    }
-                    cache_manager.add_task(task_record)
+                    if result.get('success'):
+                        response_data = {
+                            'topic': topic,
+                            'title': result.get('title', ''),
+                            'content': result.get('content', ''),
+                            'tags': result.get('tags', []),
+                            'images': result.get('images', []),
+                            'publish_status': result.get('publish_status', ''),
+                            'publish_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                            'status': 'success'
+                        }
 
-                    results.append(response_data)
-                else:
-                    failed_count += 1
-                    error_msg = result.get('error', '生成失败')
+                        # 保存到缓存
+                        task_record = {
+                            'topic': topic,
+                            'status': 'success',
+                            'progress': 100,
+                            'message': '发布成功',
+                            **response_data
+                        }
+                        cache_manager.add_task(task_record)
+
+                        logger.info(f"主题处理成功: {topic}")
+                        return response_data
+                    else:
+                        error_msg = result.get('error', '生成失败')
+
+                        logger.error(f"主题处理失败: {topic} - {error_msg}")
+
+                        # 保存失败记录到缓存
+                        cache_manager.add_task({
+                            'topic': topic,
+                            'status': 'error',
+                            'progress': 0,
+                            'message': error_msg
+                        })
+
+                        return {
+                            'topic': topic,
+                            'status': 'error',
+                            'error': error_msg
+                        }
+
+                except Exception as e:
+                    logger.error(f"处理主题 '{topic}' 失败: {e}", exc_info=True)
 
                     # 保存失败记录到缓存
                     cache_manager.add_task({
                         'topic': topic,
                         'status': 'error',
                         'progress': 0,
-                        'message': error_msg
+                        'message': str(e)
                     })
 
-                    results.append({
+                    return {
                         'topic': topic,
                         'status': 'error',
-                        'error': error_msg
-                    })
+                        'error': str(e)
+                    }
 
-            except Exception as e:
-                failed_count += 1
-                logger.error(f"处理主题 '{topic}' 失败: {e}", exc_info=True)
+        # 并发处理所有主题（最多同时5个）
+        logger.info(f"开始批量处理 {len(topics)} 个主题，最多同时运行5个任务")
+        results = await asyncio.gather(*[process_single_topic(topic) for topic in topics])
 
-                # 保存失败记录到缓存
-                cache_manager.add_task({
-                    'topic': topic,
-                    'status': 'error',
-                    'progress': 0,
-                    'message': str(e)
-                })
-
-                results.append({
-                    'topic': topic,
-                    'status': 'error',
-                    'error': str(e)
-                })
+        # 统计结果
+        success_count = sum(1 for r in results if r.get('status') == 'success')
+        failed_count = len(results) - success_count
 
         return {
             'success': True,

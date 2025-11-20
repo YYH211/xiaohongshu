@@ -580,7 +580,7 @@ class ContentGenerator:
                         })
 
                 logger.info(f"成功解析出 {len(valid_topics)} 个热点主题")
-                return valid_topics[:10]  # 限制返回10个
+                return valid_topics[:20]  # 限制返回20个
 
         except json.JSONDecodeError as e:
             logger.error(f"解析JSON失败: {e}")

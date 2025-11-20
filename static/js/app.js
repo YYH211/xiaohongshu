@@ -149,9 +149,21 @@ document.getElementById('modal-overlay').addEventListener('click', (e) => {
 });
 
 // --- 核心功能: 生成内容 ---
-async function startGenerate() {
+async function startGenerate(initialTopic = null, initialContentType = null) {
     const topicInput = document.getElementById('topic-input');
+    // 如果传入了 initialTopic，先设置到输入框（可选，也可以直接用）
+    if (initialTopic) {
+        topicInput.value = initialTopic;
+    }
+
     const topic = topicInput.value.trim();
+
+    // 如果传入了 initialContentType，先选中对应的 radio
+    if (initialContentType) {
+        const radio = document.querySelector(`input[name="content-type"][value="${initialContentType}"]`);
+        if (radio) radio.checked = true;
+    }
+
     const contentType = document.querySelector('input[name="content-type"]:checked').value;
 
     if (!topic) {
@@ -510,7 +522,7 @@ async function loadTaskHistory() {
     list.innerHTML = '<div style="text-align:center;padding:20px;">加载中...</div>';
 
     try {
-        const res = await fetch(`${API_BASE}/history?limit=20`);
+        const res = await fetch(`${API_BASE}/history?limit=100`);
         const data = await res.json();
 
         if (data.success) {
@@ -551,18 +563,64 @@ function renderHistoryList(tasks) {
         return;
     }
 
-    list.innerHTML = tasks.map(task => `
-        <div class="history-item">
-            <div class="history-info">
-                <h4>${task.topic}</h4>
-                <div class="history-meta">
-                    ${new Date(task.created_at).toLocaleString()}
-                    <span class="history-status ${task.status}">${task.status}</span>
+    // 按日期分组
+    const groups = {};
+    tasks.forEach(task => {
+        const date = new Date(task.created_at).toLocaleDateString();
+        if (!groups[date]) groups[date] = [];
+        groups[date].push(task);
+    });
+
+    // 生成 HTML
+    list.innerHTML = Object.keys(groups).map((date, index) => {
+        const groupTasks = groups[date];
+        const count = groupTasks.length;
+        // 默认全部折叠
+        const isExpanded = '';
+
+        return `
+        <div class="history-group ${isExpanded}">
+            <div class="history-group-header" onclick="toggleHistoryGroup(this)">
+                <div class="history-group-info">
+                    <span class="history-date">${date}</span>
+                    <span class="history-count">${count} 条</span>
                 </div>
+                <span class="history-toggle-icon">▼</span>
             </div>
-            <button class="btn-text" onclick='showResultModal(${JSON.stringify(task)})'>查看</button>
+            <div class="history-group-content">
+                ${groupTasks.map(task => `
+                    <div class="history-item">
+                        <div class="history-info">
+                            <h4>${task.topic}</h4>
+                            <div class="history-meta">
+                                ${new Date(task.created_at).toLocaleTimeString()}
+                                <span class="history-status ${task.status}">${task.status === 'error' ? '失败' : task.status}</span>
+                            </div>
+                        </div>
+                        ${task.status === 'error'
+                ? `<button class="btn-text error-retry" onclick='retryTask(${JSON.stringify(task).replace(/'/g, "&#39;")})'>重试</button>`
+                : `<button class="btn-text" onclick='showResultModal(${JSON.stringify(task).replace(/'/g, "&#39;")})'>查看</button>`
+            }
+                    </div>
+                `).join('')}
+            </div>
         </div>
-    `).join('');
+    `}).join('');
+}
+
+function retryTask(task) {
+    closeModal();
+    switchView('home');
+
+    // 自动填充并开始生成
+    // 如果历史记录里存了 content_type 就用，没有就默认 null (使用当前选中)
+    const contentType = task.content_type || null;
+    startGenerate(task.topic, contentType);
+}
+
+function toggleHistoryGroup(header) {
+    const group = header.parentElement;
+    group.classList.toggle('expanded');
 }
 
 // --- 工具函数 ---

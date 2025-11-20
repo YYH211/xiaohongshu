@@ -326,6 +326,7 @@ async def generate_and_publish(request_data: GeneratePublishRequest) -> Dict[str
                 'status': 'success',
                 'progress': 100,
                 'message': '发布成功',
+                'content_type': content_type,
                 **response_data
             }
             task_id = cache_manager.add_task(task_record)
@@ -341,7 +342,9 @@ async def generate_and_publish(request_data: GeneratePublishRequest) -> Dict[str
                 'topic': topic,
                 'status': 'error',
                 'progress': 0,
-                'message': result.get('error', '生成失败')
+                'progress': 0,
+                'message': result.get('error', '生成失败'),
+                'content_type': content_type
             })
 
             raise HTTPException(
@@ -563,6 +566,7 @@ async def batch_generate_and_publish(request_data: BatchGeneratePublishRequest) 
                             'status': 'success',
                             'progress': 100,
                             'message': '发布成功',
+                            'content_type': content_type,
                             **response_data
                         }
                         cache_manager.add_task(task_record)
@@ -579,7 +583,8 @@ async def batch_generate_and_publish(request_data: BatchGeneratePublishRequest) 
                             'topic': topic,
                             'status': 'error',
                             'progress': 0,
-                            'message': error_msg
+                            'message': error_msg,
+                            'content_type': content_type
                         })
 
                         return {
@@ -596,7 +601,9 @@ async def batch_generate_and_publish(request_data: BatchGeneratePublishRequest) 
                         'topic': topic,
                         'status': 'error',
                         'progress': 0,
-                        'message': str(e)
+                        'progress': 0,
+                        'message': str(e),
+                        'content_type': content_type
                     })
 
                     return {

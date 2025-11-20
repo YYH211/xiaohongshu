@@ -879,6 +879,90 @@ body {
     margin-bottom: 4px;
 }
 
+/* 历史记录分组 */
+.history-group {
+    margin-bottom: 16px;
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.history-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.05);
+    transition: background 0.2s;
+    user-select: none;
+}
+
+.history-group-header:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.history-group-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.history-date {
+    font-weight: 600;
+    color: var(--color-text-primary);
+    font-size: 0.95rem;
+}
+
+.history-count {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    background: rgba(255, 255, 255, 0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.history-toggle-icon {
+    color: var(--color-text-muted);
+    transition: transform 0.3s ease;
+    font-size: 0.8rem;
+}
+
+.history-group.expanded .history-toggle-icon {
+    transform: rotate(180deg);
+}
+
+.history-group-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}
+
+.history-group.expanded .history-group-content {
+    max-height: 1000px;
+    /* 足够大的高度以容纳内容 */
+    transition: max-height 0.5s ease-in;
+}
+
+.history-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--glass-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.2s;
+}
+
+.history-item:last-child {
+    border-bottom: none;
+}
+
+.history-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
 .history-meta {
     font-size: 0.8rem;
     color: var(--color-text-muted);

@@ -1,269 +1,288 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>小红书内容自动生成系统</title>
+    <title>AI Content Creator | 智能创作助手</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
+
 <body>
+    <!-- 动态背景画布 -->
+    <canvas id="bg-canvas"></canvas>
+
+    <!-- 噪点遮罩，增加质感 -->
+    <div class="noise-overlay"></div>
+
     <div class="app-container">
-        <!-- 顶部导航 -->
-        <nav class="top-nav">
-            <div class="nav-brand">
-                <span class="brand-icon">📝</span>
-                <span class="brand-text">小红书内容自动生成系统</span>
+        <!-- 左侧悬浮导航栏 -->
+        <nav class="sidebar">
+            <div class="brand">
+                <div class="logo-icon">✨</div>
+                <span class="brand-text">Creator</span>
+            </div>
+
+            <div class="nav-items">
+                <button class="nav-item active" data-target="home" title="创作中心">
+                    <span class="icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                        </svg>
+                    </span>
+                    <span class="label">创作</span>
+                </button>
+                <button class="nav-item" data-target="trending" title="热点发现">
+                    <span class="icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="1" x2="12" y2="23"></line>
+                            <path
+                                d="M17 5H9.5a4.5 4.5 0 0 0-4.5 4.5v0A4.5 4.5 0 0 0 9.5 14H14.5a4.5 4.5 0 0 1 4.5 4.5v0a4.5 4.5 0 0 1-4.5 4.5H9">
+                            </path>
+                        </svg>
+                    </span>
+                    <span class="label">热点</span>
+                </button>
+                <button class="nav-item" onclick="openModal('history')" title="任务历史">
+                    <span class="icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 20h9"></path>
+                            <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                        </svg>
+                    </span>
+                    <span class="label">历史</span>
+                </button>
+                <button class="nav-item" onclick="openModal('config')" title="系统设置">
+                    <span class="icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path
+                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                            </path>
+                        </svg>
+                    </span>
+                    <span class="label">设置</span>
+                </button>
+            </div>
+
+            <div class="user-profile">
+                <div class="avatar">👤</div>
             </div>
         </nav>
 
-        <!-- 主内容区 -->
-        <div class="main-wrapper">
-            <!-- 左侧边栏 -->
-            <aside class="sidebar">
-                <!-- 配置面板 -->
-                <div class="panel">
-                    <div class="panel-header" onclick="togglePanel('config')">
-                        <span>⚙️ 系统配置</span>
-                        <span class="toggle-btn" id="config-toggle">▼</span>
-                    </div>
-                    <div class="panel-body" id="config-panel">
-                        <div class="input-group">
-                            <label>LLM API Key <span class="required">*</span></label>
-                            <input type="password" id="llm_api_key" placeholder="输入API密钥">
-                            <a href="https://usw.sealos.io/" target="_blank" class="link-hint">获取密钥</a>
-                        </div>
-                        <div class="input-group">
-                            <label>OpenAI Base URL <span class="required">*</span></label>
-                            <input type="text" id="openai_base_url" placeholder="https://api.openai.com/v1">
-                        </div>
-                        <div class="input-group">
-                            <label>模型选择 <span class="required">*</span></label>
-                            <input type="text" id="default_model" placeholder="输入模型名称，如：claude-sonnet-4-20250514">
-                            <span class="input-hint">💡 输入模型名称后，系统会自动验证该模型是否可用</span>
-                            <span id="model-validation-status" class="validation-status"></span>
-                        </div>
-                        <div class="input-group">
-                            <label>Jina API Key <span class="optional">(可选)</span></label>
-                            <input type="password" id="jina_api_key" placeholder="Jina搜索API密钥">
-                        </div>
-                        <div class="input-group">
-                            <label>Tavily API Key <span class="optional">(可选)</span></label>
-                            <input type="password" id="tavily_api_key" placeholder="Tavily搜索API密钥">
-                        </div>
-                        <div class="input-group">
-                            <label>小红书MCP服务地址 <span class="required">*</span></label>
-                            <input type="text" id="xhs_mcp_url" placeholder="http://localhost:18060/mcp">
-                            <a href="https://github.com/xpzouying/xiaohongshu-mcp" target="_blank" class="link-hint">查看文档</a>
-                        </div>
-                        <div class="btn-row">
-                            <button class="btn btn-primary" onclick="saveConfig()">保存配置</button>
-                            <button class="btn btn-outline" onclick="testConnection()">测试连接</button>
-                        </div>
-                    </div>
-                </div>
+        <!-- 主内容区域 -->
+        <main class="main-content">
+            <!-- 创作中心视图 -->
+            <section id="view-home" class="view-section active">
+                <div class="hero-section">
+                    <h1 class="hero-title">What will you create today?</h1>
+                    <p class="hero-subtitle">AI 驱动的智能内容创作引擎</p>
 
-                <!-- 使用指南 -->
-                <div class="panel info-panel">
-                    <div class="panel-header">
-                        <span>📖 使用指南</span>
-                    </div>
-                    <div class="panel-body">
-                        <div class="info-steps">
-                            <div class="step-item">
-                                <span class="step-num">1</span>
-                                <span class="step-text">填写必要的API密钥</span>
-                            </div>
-                            <div class="step-item">
-                                <span class="step-num">2</span>
-                                <span class="step-text">配置小红书MCP服务地址</span>
-                            </div>
-                            <div class="step-item">
-                                <span class="step-num">3</span>
-                                <span class="step-text">输入您想创作的主题内容</span>
-                            </div>
-                            <div class="step-item">
-                                <span class="step-num">4</span>
-                                <span class="step-text">点击生成按钮，等待AI自动创作和发布</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </aside>
-
-            <!-- 右侧主内容 -->
-            <main class="content-area">
-                <!-- 热点主题面板 -->
-                <div class="panel trending-panel">
-                    <div class="panel-header">
-                        <span>🔥 今日热点主题</span>
-                    </div>
-                    <div class="panel-body">
-                        <!-- 领域快捷选择 -->
-                        <div class="domain-selector">
-                            <label class="domain-label">选择领域获取热点：</label>
-                            <div class="domain-tags">
-                                <button class="domain-tag" onclick="fetchTrendingTopicsByDomain('AI')">🤖 AI</button>
-                                <button class="domain-tag" onclick="fetchTrendingTopicsByDomain('融资')">💰 融资</button>
-                                <button class="domain-tag" onclick="fetchTrendingTopicsByDomain('论文')">📄 论文</button>
-                                <button class="domain-tag" onclick="fetchTrendingTopicsByDomain('机器人')">🦾 机器人</button>
-                            </div>
-                        </div>
-
-                        <!-- URL爬取 -->
-                        <div class="url-crawler">
-                            <label class="url-label">或输入网页链接提取主题：</label>
-                            <div class="url-input-group">
-                                <input type="text" id="url-input" class="url-input" placeholder="输入网页链接，例如：https://example.com/article">
-                                <button class="btn-crawl" onclick="fetchTopicsFromUrl()">🔍 提取主题</button>
-                            </div>
-                        </div>
-
-                        <div id="trending-topics-container" class="trending-topics-container">
-                            <p class="trending-hint">点击上方领域标签搜索热点，或输入网页链接提取主题</p>
-                        </div>
-                        <div id="trending-actions" class="trending-actions" style="display: none;">
-                            <div class="trending-actions-left">
-                                <button class="btn-select-all" onclick="toggleSelectAll()">
-                                    ✓ 全选
-                                </button>
-                                <span class="selected-count" id="selected-count">已选择 0 个主题</span>
-                            </div>
-                            <button class="btn btn-primary" onclick="batchGenerate()">
-                                🚀 批量生成选中主题
+                    <div class="creation-input-wrapper">
+                        <div class="glass-input-container">
+                            <input type="text" id="topic-input" placeholder="输入主题，开始创作..." autocomplete="off">
+                            <button class="btn-magic" onclick="startGenerate()">
+                                <span class="icon">✨</span> 生成
                             </button>
                         </div>
-                    </div>
-                </div>
 
-                <!-- 内容生成面板 -->
-                <div class="panel generate-panel">
-                    <div class="panel-header">
-                        <span>✨ 内容生成与发布</span>
-                    </div>
-                    <div class="panel-body">
-                        <div class="generate-form">
-                            <div class="input-group">
-                                <label>输入主题 <span class="required">*</span></label>
-                                <input type="text" id="topic" placeholder="例如：DeepSeek R1 最新进展、Claude 3.5 使用体验、AI 论文解读">
-                            </div>
-                            <div class="input-group">
-                                <label>内容类型 <span class="required">*</span></label>
-                                <select id="content-type" class="content-type-select">
-                                    <option value="general">通用内容生成</option>
-                                    <option value="paper_analysis">📄 论文分析</option>
-                                </select>
-                                <span class="input-hint">💡 论文分析模式专门用于解读学术论文，提供深度分析</span>
-                            </div>
-                            <button class="btn btn-generate" onclick="startGenerate()">
-                                🚀 开始生成并发布
-                            </button>
-                        </div>
-                        <p class="input-hint generate-hint">💡 输入您想创作的主题，AI将自动搜索相关信息并生成小红书内容</p>
-                    </div>
-                </div>
-
-                <!-- 进度面板 -->
-                <div class="panel">
-                    <div class="panel-header">
-                        <span>📊 当前任务</span>
-                    </div>
-                    <div class="panel-body">
-                        <div class="current-task">
-                            <div class="task-topic" id="current-topic">等待任务开始...</div>
-                            <div class="progress-container">
-                                <div class="progress-bar">
-                                    <div class="progress-value" id="progress-value"></div>
-                                </div>
-                                <div class="progress-text" id="progress-text">等待任务开始...</div>
-                            </div>
+                        <div class="creation-options">
+                            <label class="radio-glass">
+                                <input type="radio" name="content-type" value="general" checked>
+                                <span class="radio-label">通用创作</span>
+                            </label>
+                            <label class="radio-glass">
+                                <input type="radio" name="content-type" value="paper_analysis">
+                                <span class="radio-label">论文解读</span>
+                            </label>
                         </div>
                     </div>
                 </div>
 
+                <!-- 当前任务状态卡片 (动态插入) -->
+                <div id="current-task-container" class="task-status-wrapper"></div>
+            </section>
 
-                <!-- 结果面板 -->
-                <div class="panel" id="result-panel" style="display: none;">
-                    <div class="panel-header">
-                        <span>✅ 发布结果</span>
-                    </div>
-                    <div class="panel-body result-body">
-                        <div class="result-row">
-                            <div class="result-key">标题</div>
-                            <div class="result-val" id="result-title"></div>
-                        </div>
-                        <div class="result-row">
-                            <div class="result-key">内容</div>
-                            <div class="result-val result-content" id="result-content"></div>
-                        </div>
-                        <div class="result-row">
-                            <div class="result-key">标签</div>
-                            <div class="result-val" id="result-tags"></div>
-                        </div>
-                        <div class="result-row">
-                            <div class="result-key">配图</div>
-                            <div class="result-val" id="result-images"></div>
-                        </div>
-                        <div class="result-row">
-                            <div class="result-key">发布时间</div>
-                            <div class="result-val" id="result-time"></div>
-                        </div>
+            <!-- 热点发现视图 -->
+            <section id="view-trending" class="view-section">
+                <div class="section-header">
+                    <h2>今日热点</h2>
+                    <div class="domain-tabs">
+                        <button class="tab-glass active" onclick="fetchTrendingTopicsByDomain('AI')">
+                            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="11" width="18" height="10" rx="2"></rect>
+                                <circle cx="12" cy="5" r="2"></circle>
+                                <path d="M12 7v4"></path>
+                                <line x1="8" y1="16" x2="8" y2="16"></line>
+                                <line x1="16" y1="16" x2="16" y2="16"></line>
+                            </svg>
+                            AI
+                        </button>
+                        <button class="tab-glass" onclick="fetchTrendingTopicsByDomain('融资')">
+                            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="1" x2="12" y2="23"></line>
+                                <path
+                                    d="M17 5H9.5a4.5 4.5 0 0 0-4.5 4.5v0A4.5 4.5 0 0 0 9.5 14H14.5a4.5 4.5 0 0 1 4.5 4.5v0a4.5 4.5 0 0 1-4.5 4.5H9">
+                                </path>
+                            </svg>
+                            融资
+                        </button>
+                        <button class="tab-glass" onclick="fetchTrendingTopicsByDomain('论文')">
+                            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                <polyline points="10 9 9 9 8 9"></polyline>
+                            </svg>
+                            论文
+                        </button>
+                        <button class="tab-glass" onclick="fetchTrendingTopicsByDomain('机器人')">
+                            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 8V4H8"></path>
+                                <rect x="4" y="8" width="16" height="12" rx="2"></rect>
+                                <path d="M2 14h2"></path>
+                                <path d="M20 14h2"></path>
+                                <path d="M15 13v2"></path>
+                                <path d="M9 13v2"></path>
+                            </svg>
+                            机器人
+                        </button>
                     </div>
                 </div>
-            </main>
-        </div>
+
+                <div class="url-extract-bar">
+                    <input type="text" id="url-input" placeholder="或粘贴网页链接提取主题..." class="input-glass-sm">
+                    <button class="btn-glass-sm" onclick="fetchTopicsFromUrl()">提取</button>
+                </div>
+
+                <div id="topic-toolbar" class="topic-toolbar" style="display: none;">
+                    <button id="btn-select-all" class="btn-text-sm" onclick="toggleSelectAll()">
+                        <span class="icon">✓</span> 全选所有
+                    </button>
+                </div>
+
+                <div id="trending-grid" class="cards-grid">
+                    <!-- 热点卡片将通过 JS 动态插入 -->
+                    <div class="empty-state-glass">
+                        <span class="icon">🌊</span>
+                        <p>选择一个领域，探索今日热点</p>
+                    </div>
+                </div>
+
+                <div id="batch-actions" class="floating-action-bar" style="display: none;">
+                    <span id="selected-count">已选 0 项</span>
+                    <button class="btn-primary-glass" onclick="batchGenerate()">批量生成</button>
+                </div>
+            </section>
+        </main>
     </div>
 
-    <!-- 消息提示 -->
-    <div id="toast-container"></div>
-
-    <!-- 历史任务浮动按钮 -->
-    <button class="btn-history" onclick="openHistoryModal()" title="查看任务历史">
-        📝
-    </button>
-
-    <!-- 历史任务模态框 -->
-    <div class="modal-overlay" id="history-modal" onclick="closeHistoryModal(event)">
-        <div class="modal-container" onclick="event.stopPropagation()">
+    <!-- 模态框容器 -->
+    <div id="modal-overlay" class="modal-overlay">
+        <!-- 配置模态框 -->
+        <div id="modal-config" class="modal-glass">
             <div class="modal-header">
-                <div class="modal-title">
-                    <span>📝</span>
-                    <span>任务历史</span>
-                </div>
-                <button class="modal-close" onclick="closeHistoryModal()">×</button>
+                <h3>系统设置</h3>
+                <button class="btn-close" onclick="closeModal()">×</button>
             </div>
             <div class="modal-body">
-                <!-- 筛选器 -->
-                <div class="history-filter">
-                    <div class="filter-row">
-                        <div class="filter-item">
-                            <label>开始日期</label>
-                            <input type="date" id="filter-start-date" class="filter-input">
-                        </div>
-                        <div class="filter-item">
-                            <label>结束日期</label>
-                            <input type="date" id="filter-end-date" class="filter-input">
-                        </div>
-                        <div class="filter-item">
-                            <label>状态</label>
-                            <select id="filter-status" class="filter-input">
-                                <option value="">全部</option>
-                                <option value="success">成功</option>
-                                <option value="error">失败</option>
-                                <option value="running">运行中</option>
-                            </select>
-                        </div>
+                <div class="form-group">
+                    <label>LLM API Key</label>
+                    <input type="password" id="llm_api_key" class="input-glass" placeholder="sk-...">
+                </div>
+                <div class="form-group">
+                    <label>Base URL</label>
+                    <input type="text" id="openai_base_url" class="input-glass" placeholder="https://api.openai.com/v1">
+                </div>
+                <div class="form-group">
+                    <label>Model Name</label>
+                    <div class="input-with-action">
+                        <input type="text" id="default_model" class="input-glass"
+                            placeholder="claude-3-5-sonnet-20240620">
+                        <button class="btn-text" onclick="validateModel()">验证</button>
                     </div>
-                    <div class="filter-actions">
-                        <button class="btn-filter" onclick="applyFilter()">🔍 筛选</button>
-                        <button class="btn-filter-reset" onclick="resetFilter()">🔄 重置</button>
+                    <span id="model-status" class="status-text"></span>
+                </div>
+                <div class="form-divider"></div>
+                <div class="form-group">
+                    <label>小红书 MCP 地址</label>
+                    <div class="input-with-action">
+                        <input type="text" id="xhs_mcp_url" class="input-glass"
+                            placeholder="http://localhost:18060/mcp">
+                        <button class="btn-text" onclick="testConnection()">测试</button>
                     </div>
                 </div>
-                <!-- 任务列表 -->
-                <div class="modal-task-history" id="task-history"></div>
+                <div class="form-group">
+                    <label>Jina API Key (Optional)</label>
+                    <input type="password" id="jina_api_key" class="input-glass">
+                </div>
+                <div class="form-group">
+                    <label>Tavily API Key (Optional)</label>
+                    <input type="password" id="tavily_api_key" class="input-glass">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary-glass full-width" onclick="saveConfig()">保存配置</button>
+            </div>
+        </div>
+
+        <!-- 历史记录模态框 -->
+        <div id="modal-history" class="modal-glass modal-lg">
+            <div class="modal-header">
+                <h3>任务历史</h3>
+                <div class="header-actions">
+                    <div class="segment-control">
+                        <button class="segment-btn active" onclick="applyFilter('all')">全部</button>
+                        <button class="segment-btn" onclick="applyFilter('success')">成功</button>
+                        <button class="segment-btn" onclick="applyFilter('error')">失败</button>
+                    </div>
+                    <button class="btn-close" onclick="closeModal()">×</button>
+                </div>
+            </div>
+            <div class="modal-body scrollable" id="history-list">
+                <!-- 历史记录列表 -->
+            </div>
+        </div>
+
+        <!-- 结果详情模态框 -->
+        <div id="modal-result" class="modal-glass modal-lg">
+            <div class="modal-header">
+                <h3>发布详情</h3>
+                <button class="btn-close" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body scrollable">
+                <div class="result-content-wrapper">
+                    <h2 id="res-title" class="res-title"></h2>
+                    <div class="res-meta">
+                        <span id="res-time" class="tag-glass"></span>
+                        <div id="res-tags" class="tags-wrapper"></div>
+                    </div>
+                    <div id="res-images" class="images-grid"></div>
+                    <div id="res-content" class="article-content"></div>
+                </div>
             </div>
         </div>
     </div>
+
+    <!-- Toast 通知容器 -->
+    <div id="toast-container"></div>
 
     <script src="/static/js/app.js"></script>
 </body>
+
 </html>

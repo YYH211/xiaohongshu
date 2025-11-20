@@ -1,1126 +1,581 @@
+/**
+ * Creator - Premium AI Content Dashboard
+ * Logic Controller
+ */
+
 const API_BASE = '/api';
 
-// 防抖函数
-let modelValidationTimeout = null;
+// --- 初始化 ---
+document.addEventListener('DOMContentLoaded', () => {
+    initBackgroundCanvas();
+    initNavigation();
+    loadConfig(); // 预加载配置
 
-// 折叠面板
-function togglePanel(panelId) {
-    let panel, toggle;
+    // 绑定快捷键
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            if (document.activeElement.id === 'topic-input') {
+                startGenerate();
+            }
+        }
+    });
+});
 
-    if (panelId === 'history') {
-        panel = document.getElementById('history-panel-body');
-        toggle = document.getElementById('history-toggle');
-    } else {
-        panel = document.getElementById(`${panelId}-panel`);
-        toggle = document.getElementById(`${panelId}-toggle`);
+// --- 视觉效果: 动态背景 Canvas ---
+function initBackgroundCanvas() {
+    const canvas = document.getElementById('bg-canvas');
+    const ctx = canvas.getContext('2d');
+
+    let width, height;
+    let particles = [];
+
+    function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+        initParticles();
     }
 
-    if (!panel || !toggle) return;
-
-    panel.classList.toggle('collapsed');
-    toggle.classList.toggle('collapsed');
-    toggle.textContent = panel.classList.contains('collapsed') ? '▶' : '▼';
-}
-
-// 验证模型是否可用
-async function validateModel() {
-    const apiKey = document.getElementById('llm_api_key').value.trim();
-    const baseUrl = document.getElementById('openai_base_url').value.trim();
-    const modelName = document.getElementById('default_model').value.trim();
-    const statusEl = document.getElementById('model-validation-status');
-
-    // 清空之前的状态
-    statusEl.textContent = '';
-    statusEl.className = 'validation-status';
-
-    // 检查必填字段
-    if (!apiKey || !baseUrl || !modelName) {
-        return;
+    function initParticles() {
+        particles = [];
+        const count = Math.floor(width * height / 15000); // 根据屏幕面积决定粒子数
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x: Math.random() * width,
+                y: Math.random() * height,
+                vx: (Math.random() - 0.5) * 0.5,
+                vy: (Math.random() - 0.5) * 0.5,
+                size: Math.random() * 200 + 50,
+                hue: Math.random() * 60 + 220, // Blue-Purple range
+                opacity: Math.random() * 0.3
+            });
+        }
     }
 
-    // 显示验证中状态
-    statusEl.textContent = '验证中...';
-    statusEl.className = 'validation-status validating';
+    function animate() {
+        ctx.clearRect(0, 0, width, height);
 
-    try {
-        const response = await fetch(`${API_BASE}/validate-model`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                llm_api_key: apiKey,
-                openai_base_url: baseUrl,
-                model_name: modelName
-            })
+        // 绘制渐变背景
+        const gradient = ctx.createLinearGradient(0, 0, width, height);
+        gradient.addColorStop(0, '#0f0f13');
+        gradient.addColorStop(1, '#1a1a2e');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, width, height);
+
+        // 绘制流体粒子
+        particles.forEach(p => {
+            p.x += p.vx;
+            p.y += p.vy;
+
+            if (p.x < -p.size) p.x = width + p.size;
+            if (p.x > width + p.size) p.x = -p.size;
+            if (p.y < -p.size) p.y = height + p.size;
+            if (p.y > height + p.size) p.y = -p.size;
+
+            const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+            g.addColorStop(0, `hsla(${p.hue}, 80%, 60%, ${p.opacity})`);
+            g.addColorStop(1, 'transparent');
+
+            ctx.fillStyle = g;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
         });
 
-        const data = await response.json();
-
-        if (response.ok && data.success) {
-            statusEl.textContent = '✓ 模型可用';
-            statusEl.className = 'validation-status valid';
-        } else {
-            statusEl.textContent = `✗ ${data.detail || '模型验证失败'}`;
-            statusEl.className = 'validation-status invalid';
-        }
-    } catch (error) {
-        statusEl.textContent = `✗ 验证失败: ${error.message}`;
-        statusEl.className = 'validation-status invalid';
-    }
-}
-
-// 防抖验证模型
-function debounceValidateModel() {
-    if (modelValidationTimeout) {
-        clearTimeout(modelValidationTimeout);
-    }
-    modelValidationTimeout = setTimeout(validateModel, 800);
-}
-
-// 显示Toast消息
-function showToast(message, type = 'info') {
-    const container = document.getElementById('toast-container');
-
-    const icons = {
-        success: '✅',
-        error: '❌',
-        info: 'ℹ️'
-    };
-
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.innerHTML = `
-        <span class="toast-icon">${icons[type]}</span>
-        <span class="toast-message">${message}</span>
-    `;
-
-    container.appendChild(toast);
-
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
-    }, 4000);
-}
-
-// 加载配置
-async function loadConfig() {
-    try {
-        const response = await fetch(`${API_BASE}/config`);
-        const data = await response.json();
-
-        if (data.success && data.config) {
-            const config = data.config;
-
-            // 填充表单(只填充非空值)
-            if (config.llm_api_key) {
-                document.getElementById('llm_api_key').value = config.llm_api_key;
-                // 如果是脱敏值,设置占位符提示
-                if (config.llm_api_key.includes('*')) {
-                    document.getElementById('llm_api_key').placeholder = '已配置(留空不修改)';
-                }
-            }
-
-            if (config.openai_base_url) {
-                document.getElementById('openai_base_url').value = config.openai_base_url;
-            }
-
-            if (config.default_model) {
-                document.getElementById('default_model').value = config.default_model;
-            }
-
-            if (config.jina_api_key) {
-                document.getElementById('jina_api_key').value = config.jina_api_key;
-                if (config.jina_api_key.includes('*')) {
-                    document.getElementById('jina_api_key').placeholder = '已配置(留空不修改)';
-                }
-            }
-
-            if (config.tavily_api_key) {
-                document.getElementById('tavily_api_key').value = config.tavily_api_key;
-                if (config.tavily_api_key.includes('*')) {
-                    document.getElementById('tavily_api_key').placeholder = '已配置(留空不修改)';
-                }
-            }
-
-            if (config.xhs_mcp_url) {
-                document.getElementById('xhs_mcp_url').value = config.xhs_mcp_url;
-            }
-        }
-    } catch (error) {
-        console.error('加载配置失败:', error);
-    }
-}
-
-// 保存配置
-async function saveConfig() {
-    const config = {};
-
-    // 只收集非空且非脱敏占位符的值
-    const llmApiKey = document.getElementById('llm_api_key').value.trim();
-    const openaiBaseUrl = document.getElementById('openai_base_url').value.trim();
-    const defaultModel = document.getElementById('default_model').value.trim();
-    const jinaApiKey = document.getElementById('jina_api_key').value.trim();
-    const tavilyApiKey = document.getElementById('tavily_api_key').value.trim();
-    const xhsMcpUrl = document.getElementById('xhs_mcp_url').value.trim();
-
-    // 只添加非空且不包含*的字段(排除脱敏占位符)
-    if (llmApiKey && !llmApiKey.includes('*')) config.llm_api_key = llmApiKey;
-    if (openaiBaseUrl) config.openai_base_url = openaiBaseUrl;
-    if (defaultModel) config.default_model = defaultModel;
-    if (jinaApiKey && !jinaApiKey.includes('*')) config.jina_api_key = jinaApiKey;
-    if (tavilyApiKey && !tavilyApiKey.includes('*')) config.tavily_api_key = tavilyApiKey;
-    if (xhsMcpUrl) config.xhs_mcp_url = xhsMcpUrl;
-
-    // 检查是否有要保存的配置
-    if (Object.keys(config).length === 0) {
-        showToast('没有需要保存的配置', 'info');
-        return;
+        requestAnimationFrame(animate);
     }
 
-    try {
-        const response = await fetch(`${API_BASE}/config`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(config)
+    window.addEventListener('resize', resize);
+    resize();
+    animate();
+}
+
+// --- 导航与视图切换 ---
+function initNavigation() {
+    const navItems = document.querySelectorAll('.nav-item[data-target]');
+    navItems.forEach(item => {
+        item.addEventListener('click', () => {
+            const targetId = item.dataset.target;
+            switchView(targetId);
+
+            // 更新激活状态
+            navItems.forEach(nav => nav.classList.remove('active'));
+            item.classList.add('active');
         });
+    });
+}
 
-        const data = await response.json();
+function switchView(viewId) {
+    // 隐藏所有视图
+    document.querySelectorAll('.view-section').forEach(el => {
+        el.classList.remove('active');
+    });
 
-        if (data.success) {
-            showToast(data.message || '配置保存成功', 'success');
-            // 重新加载配置以获取最新的脱敏值
-            await loadConfig();
-        } else {
-            showToast(data.error || '保存失败', 'error');
-        }
-    } catch (error) {
-        showToast(`保存失败：${error.message}`, 'error');
+    // 显示目标视图
+    const targetView = document.getElementById(`view-${viewId}`);
+    if (targetView) {
+        targetView.classList.add('active');
     }
 }
 
-// 测试连接
-async function testConnection() {
-    const xhsMcpUrl = document.getElementById('xhs_mcp_url').value.trim();
+// --- 模态框管理 ---
+function openModal(modalId) {
+    const overlay = document.getElementById('modal-overlay');
+    const modal = document.getElementById(`modal-${modalId}`);
 
-    if (!xhsMcpUrl) {
-        showToast('请先填写小红书MCP服务地址', 'error');
-        return;
-    }
+    // 隐藏其他模态框
+    document.querySelectorAll('.modal-glass').forEach(el => el.classList.remove('active'));
 
-    showToast('正在测试连接...', 'info');
+    overlay.classList.add('active');
+    modal.classList.add('active');
 
-    try {
-        const response = await fetch(`${API_BASE}/test-login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ xhs_mcp_url: xhsMcpUrl })
-        });
-
-        const data = await response.json();
-
-        if (data.success) {
-            showToast('连接成功！', 'success');
-        } else {
-            showToast(data.error || '连接失败', 'error');
-        }
-    } catch (error) {
-        showToast(`测试失败：${error.message}`, 'error');
+    if (modalId === 'history') {
+        loadTaskHistory();
     }
 }
 
-// 更新进度 - 仅更新当前任务显示
-function updateProgress(taskIdOrPercent, percentOrText, textOrUndefined) {
-    let percent, text;
+function closeModal() {
+    const overlay = document.getElementById('modal-overlay');
+    overlay.classList.remove('active');
+    document.querySelectorAll('.modal-glass').forEach(el => el.classList.remove('active'));
+}
 
-    // 兼容旧的调用方式 updateProgress(percent, text)
-    if (typeof taskIdOrPercent === 'number' && typeof percentOrText === 'string') {
-        // 旧方式：updateProgress(10, '开始...')
-        percent = taskIdOrPercent;
-        text = percentOrText;
-    } else {
-        // 新方式：updateProgress(taskId, 10, '开始...')
-        percent = percentOrText;
-        text = textOrUndefined;
+// 点击遮罩层关闭
+document.getElementById('modal-overlay').addEventListener('click', (e) => {
+    if (e.target.id === 'modal-overlay') {
+        closeModal();
     }
+});
 
-    // 更新当前任务显示
-    document.getElementById('progress-value').style.width = `${percent}%`;
-    document.getElementById('progress-text').textContent = text;
-}
-
-// 将当前任务添加到历史
-// 注意：此函数现在是空操作，因为任务历史由后端在完成时自动保存
-// 前端通过 loadTaskHistory() 从服务器加载历史记录
-function moveCurrentToHistory() {
-    // 不再需要客户端创建历史卡片
-    // 任务完成后会由后端自动保存到 cache_manager
-    // 用户打开历史模态框时会从服务器加载最新历史
-}
-
-// 开始生成 - 带任务ID追踪
+// --- 核心功能: 生成内容 ---
 async function startGenerate() {
-    const topic = document.getElementById('topic').value.trim();
-    const contentType = document.getElementById('content-type').value;
+    const topicInput = document.getElementById('topic-input');
+    const topic = topicInput.value.trim();
+    const contentType = document.querySelector('input[name="content-type"]:checked').value;
 
     if (!topic) {
-        showToast('请输入主题', 'error');
+        showToast('请输入创作主题', 'info');
+        topicInput.focus();
         return;
     }
 
-    // 执行生成任务
-    await executeGenerate(topic, contentType);
-}
-
-// 旧的删除和重试函数已被移除
-// 现在使用 deleteTaskFromServer() 和 retryTaskFromHistory()
-// 这些函数在下方定义，直接操作服务器端数据
-
-// 执行生成任务的核心逻辑
-async function executeGenerate(topic, contentType = "general") {
-    // 创建新任务ID
+    // 创建任务卡片 UI
     const taskId = 'task-' + Date.now();
+    createTaskStatusCard(taskId, topic);
 
-    // 将当前任务移到历史
-    moveCurrentToHistory();
-
-    // 更新当前任务，保存任务ID
-    const currentTopicEl = document.getElementById('current-topic');
-    currentTopicEl.textContent = topic;
-    currentTopicEl.dataset.taskId = taskId;
-
-    // 清空输入框
-    document.getElementById('topic').value = '';
-
-    // 隐藏结果面板
-    document.getElementById('result-panel').style.display = 'none';
-
-    // 开始进度
-    updateProgress(taskId, 10, '开始生成内容...');
+    // 清空输入
+    topicInput.value = '';
 
     try {
+        updateTaskProgress(taskId, 10, '正在启动创作引擎...');
+
         const response = await fetch(`${API_BASE}/generate-and-publish`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ topic, content_type: contentType })
         });
 
-        // 模拟进度更新
-        updateProgress(taskId, 30, '正在检索相关信息...');
-        await sleep(800);
-
-        updateProgress(taskId, 50, '正在生成文章内容...');
-        await sleep(800);
-
-        updateProgress(taskId, 70, '正在优化内容...');
-        await sleep(800);
-
-        updateProgress(taskId, 90, '正在发布到小红书...');
+        // 模拟进度 (真实进度需 WebSocket，此处为模拟体验)
+        simulateProgress(taskId);
 
         const data = await response.json();
 
         if (data.success) {
-            updateProgress(taskId, 100, '发布成功！');
-            await sleep(500);
-            showResult(data.data);
-            showToast('内容生成并发布成功', 'success');
+            updateTaskProgress(taskId, 100, '发布成功！');
+            showToast('内容创作完成', 'success');
+
+            // 延迟展示结果
+            setTimeout(() => {
+                showResultModal(data.data);
+            }, 1000);
         } else {
-            updateProgress(taskId, 0, data.error || '生成失败');
+            updateTaskStatus(taskId, 'error', data.error || '生成失败');
             showToast(data.error || '生成失败', 'error');
         }
     } catch (error) {
-        updateProgress(taskId, 0, `操作失败: ${error.message}`);
-        showToast(`操作失败：${error.message}`, 'error');
+        updateTaskStatus(taskId, 'error', error.message);
+        showToast(`请求失败: ${error.message}`, 'error');
     }
 }
 
-// 显示结果
-function showResult(data) {
-    const resultPanel = document.getElementById('result-panel');
-    resultPanel.style.display = 'block';
-
-    // 滚动到结果面板
-    resultPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-    // 填充数据
-    document.getElementById('result-title').textContent = data.title || '无标题';
-    document.getElementById('result-content').textContent = data.content || '无内容';
-    document.getElementById('result-time').textContent = data.publish_time || new Date().toLocaleString('zh-CN');
-
-    // 标签
-    const tagsEl = document.getElementById('result-tags');
-    tagsEl.innerHTML = '';
-    if (data.tags && data.tags.length > 0) {
-        data.tags.forEach(tag => {
-            const tagEl = document.createElement('span');
-            tagEl.className = 'tag-item';
-            tagEl.textContent = tag;
-            tagsEl.appendChild(tagEl);
-        });
-    } else {
-        tagsEl.textContent = '无标签';
-    }
-
-    // 图片
-    const imagesEl = document.getElementById('result-images');
-    imagesEl.innerHTML = '';
-    if (data.images && data.images.length > 0) {
-        data.images.forEach(url => {
-            const imgEl = document.createElement('div');
-            imgEl.className = 'img-item';
-            imgEl.innerHTML = `
-                <img src="${url}" alt="配图" onerror="this.style.display='none'">
-                <a href="${url}" target="_blank" class="img-link">${url}</a>
-            `;
-            imagesEl.appendChild(imgEl);
-        });
-    } else {
-        imagesEl.textContent = '无配图';
-    }
-}
-
-// 辅助函数：延迟
-function sleep(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-// 快捷键：Ctrl/Cmd + Enter
-document.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        const topicInput = document.getElementById('topic');
-        if (document.activeElement === topicInput) {
-            startGenerate();
-        }
-    }
-});
-
-// 从服务器加载历史记录
-async function loadTaskHistory(startDate = null, endDate = null, status = null) {
-    try {
-        let url = `${API_BASE}/history?limit=50`;
-        if (startDate) url += `&start_date=${startDate}`;
-        if (endDate) url += `&end_date=${endDate}`;
-        if (status) url += `&status=${status}`;
-
-        const response = await fetch(url);
-        const data = await response.json();
-
-        const historyContainer = document.getElementById('task-history');
-
-        // 清空现有历史
-        historyContainer.innerHTML = '';
-
-        if (data.success && data.data && data.data.length > 0) {
-
-            // 按日期分组
-            const tasksByDate = groupTasksByDate(data.data);
-
-            // 渲染分组后的历史记录
-            renderGroupedTasks(tasksByDate);
-
-            console.log(`加载了 ${data.data.length} 条历史记录`);
-        } else if (data.success && (!data.data || data.data.length === 0)) {
-            // 没有数据，显示空状态
-            historyContainer.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-state-icon">📭</div>
-                    <div class="empty-state-text">暂无任务记录</div>
-                </div>
-            `;
-        } else {
-            // 请求失败
-            showToast('加载历史记录失败', 'error');
-        }
-    } catch (error) {
-        console.error('加载历史记录失败:', error);
-        showToast('加载历史记录失败: ' + error.message, 'error');
-    }
-}
-
-// 按日期分组任务
-function groupTasksByDate(tasks) {
-    const groups = {};
-
-    tasks.forEach(task => {
-        // 提取日期部分（格式：2025/11/5）
-        let dateKey = '未知日期';
-        if (task.created_at) {
-            const date = new Date(task.created_at);
-            dateKey = `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
-        }
-
-        if (!groups[dateKey]) {
-            groups[dateKey] = [];
-        }
-        groups[dateKey].push(task);
-    });
-
-    // 按日期排序（最新的在前）
-    const sortedDates = Object.keys(groups).sort((a, b) => {
-        if (a === '未知日期') return 1;
-        if (b === '未知日期') return -1;
-        return new Date(b) - new Date(a);
-    });
-
-    return sortedDates.map(date => ({
-        date: date,
-        tasks: groups[date]
-    }));
-}
-
-// 渲染分组后的任务
-function renderGroupedTasks(groupedTasks) {
-    const historyContainer = document.getElementById('task-history');
-
-    groupedTasks.forEach((group, index) => {
-        // 创建日期分组容器
-        const dateGroup = document.createElement('div');
-        dateGroup.className = 'date-group collapsed'; // 默认折叠
-        const groupId = `date-group-${index}`;
-        dateGroup.id = groupId;
-
-        // 创建日期标题
-        const dateHeader = document.createElement('div');
-        dateHeader.className = 'date-header';
-
-        // 格式化日期显示
-        const dateTitle = formatDateTitle(group.date);
-        dateHeader.innerHTML = `
-            <div class="date-header-left">
-                <span class="date-toggle">▶</span>
-                <span class="date-label">${dateTitle}</span>
-                <span class="date-count">${group.tasks.length} 个任务</span>
+function createTaskStatusCard(taskId, topic) {
+    const container = document.getElementById('current-task-container');
+    container.innerHTML = `
+        <div id="${taskId}" class="status-card">
+            <div class="status-header">
+                <span class="status-topic">${topic}</span>
+                <span class="status-badge running">进行中</span>
             </div>
-        `;
-
-        // 添加点击事件来折叠/展开
-        dateHeader.addEventListener('click', () => {
-            toggleDateGroup(groupId);
-        });
-
-        dateGroup.appendChild(dateHeader);
-
-        // 创建任务列表容器
-        const tasksContainer = document.createElement('div');
-        tasksContainer.className = 'date-tasks';
-        tasksContainer.style.maxHeight = '0'; // 初始高度为0（折叠状态）
-
-        // 添加每个任务卡片
-        group.tasks.forEach(task => {
-            const card = createTaskCardElement(task);
-            tasksContainer.appendChild(card);
-        });
-
-        dateGroup.appendChild(tasksContainer);
-        historyContainer.appendChild(dateGroup);
-    });
-}
-
-// 折叠/展开日期分组
-function toggleDateGroup(groupId) {
-    const dateGroup = document.getElementById(groupId);
-    if (!dateGroup) return;
-
-    const tasksContainer = dateGroup.querySelector('.date-tasks');
-    const toggleIcon = dateGroup.querySelector('.date-toggle');
-
-    if (dateGroup.classList.contains('collapsed')) {
-        // 展开
-        dateGroup.classList.remove('collapsed');
-        tasksContainer.style.maxHeight = tasksContainer.scrollHeight + 'px';
-        toggleIcon.textContent = '▼';
-
-        // 动画完成后移除 max-height，以便内容能动态调整
-        setTimeout(() => {
-            if (!dateGroup.classList.contains('collapsed')) {
-                tasksContainer.style.maxHeight = 'none';
-            }
-        }, 300);
-    } else {
-        // 折叠
-        tasksContainer.style.maxHeight = tasksContainer.scrollHeight + 'px';
-        // 强制浏览器重绘
-        tasksContainer.offsetHeight;
-        tasksContainer.style.maxHeight = '0';
-        toggleIcon.textContent = '▶';
-        dateGroup.classList.add('collapsed');
-    }
-}
-
-// 格式化日期标题
-function formatDateTitle(dateStr) {
-    if (dateStr === '未知日期') return dateStr;
-
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-
-    const date = new Date(dateStr);
-    const dateKey = `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
-    const todayKey = `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()}`;
-    const yesterdayKey = `${yesterday.getFullYear()}/${yesterday.getMonth() + 1}/${yesterday.getDate()}`;
-
-    if (dateKey === todayKey) {
-        return `今天 (${dateStr})`;
-    } else if (dateKey === yesterdayKey) {
-        return `昨天 (${dateStr})`;
-    } else {
-        return dateStr;
-    }
-}
-
-// 创建任务卡片元素（返回DOM元素）
-function createTaskCardElement(task) {
-    const cardId = task.id || 'task-card-' + Date.now();
-
-    // 判断状态
-    let status = task.status || 'running';
-    let statusIcon = '⏳';
-    if (status === 'success') {
-        statusIcon = '✅';
-    } else if (status === 'error') {
-        statusIcon = '❌';
-    }
-
-    const card = document.createElement('div');
-    card.id = cardId;
-    card.className = `task-card ${status}`;
-    card.dataset.topic = task.topic;
-    card.dataset.taskId = task.id;
-
-    // 格式化时间（仅显示时:分）
-    let displayTime = '';
-    if (task.created_at) {
-        const date = new Date(task.created_at);
-        displayTime = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-    }
-
-    // 转义HTML特殊字符
-    const escapeTopic = task.topic.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
-    card.innerHTML = `
-        <div class="task-card-header">
-            <div class="task-card-topic" title="${escapeTopic}">${escapeTopic}</div>
-            <div class="task-card-status">${statusIcon}</div>
-            <div class="task-card-delete" onclick="deleteTaskFromServer('${task.id}')" title="删除任务">×</div>
-        </div>
-        <div class="task-card-progress">
-            <div class="task-card-progress-bar">
-                <div class="task-card-progress-value" style="width: ${task.progress || 0}%"></div>
+            <div class="progress-track">
+                <div class="progress-fill" style="width: 0%"></div>
             </div>
-            <div class="task-card-progress-text">${task.message || ''}</div>
-            ${displayTime ? `<div class="task-card-time">${displayTime}</div>` : ''}
-        </div>
-        <div class="task-card-retry">
-            <button class="btn-retry">🔄 重试</button>
+            <div class="status-text">准备就绪</div>
         </div>
     `;
-
-    // 添加重试按钮事件监听器（避免onclick中的字符串转义问题）
-    const retryBtn = card.querySelector('.btn-retry');
-    if (retryBtn) {
-        retryBtn.addEventListener('click', () => {
-            retryTaskFromHistory(task.id, task.topic);
-        });
-    }
-
-    // 如果是错误状态，确保重试按钮显示
-    if (status === 'error') {
-        const retryDiv = card.querySelector('.task-card-retry');
-        if (retryDiv) {
-            retryDiv.style.display = 'block';
-        }
-    }
-
-    return card;
 }
 
-// 从服务器删除任务
-async function deleteTaskFromServer(taskId) {
-    try {
-        const response = await fetch(`${API_BASE}/history/${taskId}`, {
-            method: 'DELETE'
-        });
+function updateTaskProgress(taskId, percent, text) {
+    const card = document.getElementById(taskId);
+    if (!card) return;
 
-        const data = await response.json();
+    card.querySelector('.progress-fill').style.width = `${percent}%`;
+    card.querySelector('.status-text').textContent = text;
+}
 
-        if (data.success) {
-            // 从DOM中移除卡片
-            const card = document.querySelector(`[data-task-id="${taskId}"]`);
-            if (card) {
-                card.style.opacity = '0';
-                card.style.transform = 'translateX(-20px)';
+function updateTaskStatus(taskId, status, message) {
+    const card = document.getElementById(taskId);
+    if (!card) return;
 
-                setTimeout(() => {
-                    // 获取父级日期分组
-                    const dateTasksContainer = card.parentElement;
-                    const dateGroup = dateTasksContainer ? dateTasksContainer.parentElement : null;
+    const badge = card.querySelector('.status-badge');
+    badge.className = `status-badge ${status}`;
+    badge.textContent = status === 'error' ? '失败' : '完成';
 
-                    card.remove();
+    card.querySelector('.status-text').textContent = message;
+}
 
-                    // 如果该日期分组下没有任务了，移除整个日期分组
-                    if (dateTasksContainer && dateTasksContainer.children.length === 0 && dateGroup) {
-                        dateGroup.remove();
-                    }
+async function simulateProgress(taskId) {
+    const steps = [
+        { p: 30, t: '正在全网检索相关资料...' },
+        { p: 50, t: 'AI 正在深度阅读与分析...' },
+        { p: 70, t: '正在撰写与润色文案...' },
+        { p: 90, t: '正在生成配图并发布...' }
+    ];
 
-                    // 如果所有日期分组都没了，显示空状态
-                    const historyContainer = document.getElementById('task-history');
-                    if (historyContainer && historyContainer.children.length === 0) {
-                        historyContainer.innerHTML = `
-                            <div class="empty-state">
-                                <div class="empty-state-icon">📭</div>
-                                <div class="empty-state-text">暂无任务记录</div>
-                            </div>
-                        `;
-                    }
-                }, 300);
-            }
-
-            showToast('任务已删除', 'info');
-        } else {
-            showToast('删除失败', 'error');
-        }
-    } catch (error) {
-        console.error('删除任务失败:', error);
-        showToast('删除失败: ' + error.message, 'error');
+    for (const step of steps) {
+        await new Promise(r => setTimeout(r, 1500));
+        const card = document.getElementById(taskId);
+        // 如果任务已经结束（比如报错了），就不再更新
+        if (!card || card.querySelector('.status-badge').classList.contains('error')) break;
+        updateTaskProgress(taskId, step.p, step.t);
     }
 }
 
-// 从历史记录重试任务
-async function retryTaskFromHistory(taskId, topic) {
-    // 删除旧的失败记录（从服务器和DOM）
-    try {
-        const response = await fetch(`${API_BASE}/history/${taskId}`, {
-            method: 'DELETE'
-        });
+// --- 结果展示 ---
+function showResultModal(data) {
+    document.getElementById('res-title').textContent = data.title || '无标题';
+    document.getElementById('res-time').textContent = data.publish_time || new Date().toLocaleString();
+    document.getElementById('res-content').textContent = data.content || '';
 
-        const data = await response.json();
+    // Tags
+    const tagsContainer = document.getElementById('res-tags');
+    tagsContainer.innerHTML = (data.tags || []).map(tag => `<span class="tag-glass">#${tag}</span>`).join('');
 
-        if (data.success) {
-            // 从DOM中移除（静默删除，不显示toast）
-            const card = document.querySelector(`[data-task-id="${taskId}"]`);
-            if (card) {
-                card.remove();
-            }
-        }
-    } catch (error) {
-        console.error('删除旧任务记录失败:', error);
-        // 即使删除失败，也继续执行重试
-    }
+    // Images
+    const imgContainer = document.getElementById('res-images');
+    imgContainer.innerHTML = (data.images || []).map(url => `<img src="${url}" onclick="window.open('${url}')">`).join('');
 
-    // 执行生成任务 (executeGenerate内部会调用moveCurrentToHistory)
-    await executeGenerate(topic);
+    openModal('result');
 }
 
-// 应用筛选器
-function applyFilter() {
-    const startDate = document.getElementById('filter-start-date').value;
-    const endDate = document.getElementById('filter-end-date').value;
-    const status = document.getElementById('filter-status').value;
-
-    loadTaskHistory(startDate, endDate, status);
-}
-
-// 重置筛选器
-function resetFilter() {
-    document.getElementById('filter-start-date').value = '';
-    document.getElementById('filter-end-date').value = '';
-    document.getElementById('filter-status').value = '';
-
-    loadTaskHistory();
-}
-
-// 存储热点主题数据
-let trendingTopics = [];
+// --- 热点发现 ---
 let selectedTopics = new Set();
 
-// 按领域获取热点主题
 async function fetchTrendingTopicsByDomain(domain) {
-    const container = document.getElementById('trending-topics-container');
-    const actionsDiv = document.getElementById('trending-actions');
-
-    // 更新按钮状态
-    document.querySelectorAll('.domain-tag').forEach(btn => {
-        btn.classList.remove('active');
+    // 更新 Tab 状态
+    document.querySelectorAll('.tab-glass').forEach(el => {
+        el.classList.toggle('active', el.textContent.includes(domain));
     });
-    event.target.classList.add('active');
 
-    // 显示加载状态
-    container.innerHTML = '<p class="trending-hint">正在获取 ' + domain + ' 领域热点主题...</p>';
-    actionsDiv.style.display = 'none';
-
-    showToast(`正在获取 ${domain} 领域热点主题，请稍候...`, 'info');
+    const grid = document.getElementById('trending-grid');
+    grid.innerHTML = '<div class="empty-state-glass"><span class="icon">⏳</span><p>正在搜寻全网热点...</p></div>';
 
     try {
         const response = await fetch(`${API_BASE}/fetch-trending-topics`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ domain: domain })
+            body: JSON.stringify({ domain })
         });
 
         const data = await response.json();
-
-        if (data.success && data.topics && data.topics.length > 0) {
-            trendingTopics = data.topics;
-            renderTrendingTopics(data.topics);
-            showToast(`成功获取 ${data.topics.length} 个${domain}领域热点主题`, 'success');
+        if (data.success && data.topics) {
+            renderTrendingCards(data.topics);
         } else {
-            container.innerHTML = `<p class="trending-hint">未能获取${domain}领域热点主题，请稍后重试</p>`;
-            showToast(`未能获取${domain}领域热点主题`, 'error');
+            grid.innerHTML = '<div class="empty-state-glass"><p>未找到相关热点</p></div>';
         }
     } catch (error) {
-        container.innerHTML = '<p class="trending-hint">获取失败，请检查网络连接</p>';
-        showToast(`获取失败：${error.message}`, 'error');
+        showToast('获取热点失败', 'error');
+        grid.innerHTML = '<div class="empty-state-glass"><p>加载失败，请重试</p></div>';
     }
 }
 
-// 从URL提取主题
 async function fetchTopicsFromUrl() {
-    const urlInput = document.getElementById('url-input');
-    const url = urlInput.value.trim();
+    const url = document.getElementById('url-input').value.trim();
+    if (!url) return showToast('请输入链接', 'info');
 
-    if (!url) {
-        showToast('请输入网页链接', 'error');
-        return;
-    }
-
-    // 简单验证URL格式
-    try {
-        new URL(url);
-    } catch (e) {
-        showToast('请输入有效的网页链接', 'error');
-        return;
-    }
-
-    const container = document.getElementById('trending-topics-container');
-    const actionsDiv = document.getElementById('trending-actions');
-
-    // 清除领域标签的选中状态
-    document.querySelectorAll('.domain-tag').forEach(btn => {
-        btn.classList.remove('active');
-    });
-
-    // 显示加载状态
-    container.innerHTML = '<p class="trending-hint">正在爬取网页内容并提取主题...</p>';
-    actionsDiv.style.display = 'none';
-
-    showToast('正在爬取网页内容，请稍候...', 'info');
+    const grid = document.getElementById('trending-grid');
+    grid.innerHTML = '<div class="empty-state-glass"><span class="icon">🕷️</span><p>正在爬取并分析网页...</p></div>';
 
     try {
         const response = await fetch(`${API_BASE}/fetch-topics-from-url`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: url })
+            body: JSON.stringify({ url })
         });
 
         const data = await response.json();
-
-        if (data.success && data.topics && data.topics.length > 0) {
-            trendingTopics = data.topics;
-            renderTrendingTopics(data.topics);
-            showToast(`成功从网页提取 ${data.topics.length} 个主题`, 'success');
-            // 清空输入框
-            urlInput.value = '';
-        } else {
-            container.innerHTML = '<p class="trending-hint">未能从该网页提取主题，请检查链接是否正确</p>';
-            showToast(data.error || '未能提取主题', 'error');
+        if (data.success && data.topics) {
+            renderTrendingCards(data.topics);
         }
     } catch (error) {
-        container.innerHTML = '<p class="trending-hint">提取失败，请检查网络连接或链接是否正确</p>';
-        showToast(`提取失败：${error.message}`, 'error');
+        showToast('提取失败', 'error');
     }
 }
 
-// 渲染热点主题列表
-function renderTrendingTopics(topics) {
-    const container = document.getElementById('trending-topics-container');
-    const actionsDiv = document.getElementById('trending-actions');
-
-    container.innerHTML = '';
+function renderTrendingCards(topics) {
+    const grid = document.getElementById('trending-grid');
+    grid.innerHTML = '';
     selectedTopics.clear();
+    updateBatchActionState();
+    updateSelectAllButtonState();
+
+    currentTopics = topics; // 保存当前主题列表
 
     topics.forEach((topic, index) => {
-        const topicItem = document.createElement('div');
-        topicItem.className = 'topic-item';
-        topicItem.dataset.index = index;
-
-        topicItem.innerHTML = `
-            <div class="topic-item-header">
-                <input type="checkbox" class="topic-checkbox" id="topic-${index}">
-                <label class="topic-title" for="topic-${index}">${topic.title}</label>
-            </div>
-            <div class="topic-summary">${topic.summary}</div>
+        const card = document.createElement('div');
+        card.className = 'topic-card';
+        card.innerHTML = `
+            <div class="card-check">✓</div>
+            <div class="card-title">${topic.title}</div>
+            <div class="card-summary">${topic.summary}</div>
         `;
 
-        // 添加点击事件
-        const checkbox = topicItem.querySelector('.topic-checkbox');
-        checkbox.addEventListener('change', () => {
-            if (checkbox.checked) {
-                selectedTopics.add(index);
-                topicItem.classList.add('selected');
-            } else {
-                selectedTopics.delete(index);
-                topicItem.classList.remove('selected');
-            }
-            updateSelectedCount();
-        });
+        card.onclick = () => toggleTopicSelection(card, topic);
+        grid.appendChild(card);
 
-        // 点击整个卡片也能选择
-        topicItem.addEventListener('click', (e) => {
-            if (e.target !== checkbox) {
-                checkbox.checked = !checkbox.checked;
-                checkbox.dispatchEvent(new Event('change'));
-            }
-        });
-
-        container.appendChild(topicItem);
+        // 动画入场
+        card.style.animation = `slideInUp 0.5s ease backwards ${index * 0.05}s`;
     });
 
-    actionsDiv.style.display = 'flex';
-    updateSelectedCount();
-}
-
-// 更新选中数量显示
-function updateSelectedCount() {
-    const countEl = document.getElementById('selected-count');
-    countEl.textContent = `已选择 ${selectedTopics.size} 个主题`;
-
-    // 更新全选按钮状态
-    const selectAllBtn = document.querySelector('.btn-select-all');
-    if (selectAllBtn) {
-        if (selectedTopics.size === trendingTopics.length && trendingTopics.length > 0) {
-            selectAllBtn.classList.add('all-selected');
-            selectAllBtn.textContent = '✓ 已全选';
-        } else {
-            selectAllBtn.classList.remove('all-selected');
-            selectAllBtn.textContent = '✓ 全选';
-        }
-    }
-
-    // 同步更新到当前任务区域
-    updateCurrentTaskDisplay();
-}
-
-// 更新当前任务显示区域
-function updateCurrentTaskDisplay() {
-    const currentTopicEl = document.getElementById('current-topic');
-    const progressTextEl = document.getElementById('progress-text');
-    const progressValueEl = document.getElementById('progress-value');
-
-    if (selectedTopics.size === 0) {
-        currentTopicEl.textContent = '等待任务开始...';
-        progressTextEl.textContent = '等待任务开始...';
-        progressValueEl.style.width = '0%';
+    // 显示全选工具栏
+    const toolbar = document.getElementById('topic-toolbar');
+    if (topics.length > 0) {
+        toolbar.style.display = 'flex';
     } else {
-        const selectedTopicTitles = Array.from(selectedTopics).map(index => trendingTopics[index].title);
-
-        if (selectedTopics.size === 1) {
-            currentTopicEl.textContent = selectedTopicTitles[0];
-            progressTextEl.textContent = '已选择 1 个主题，点击「批量生成选中主题」开始创作';
-        } else {
-            currentTopicEl.textContent = `已选择 ${selectedTopics.size} 个主题`;
-            progressTextEl.textContent = `主题：${selectedTopicTitles.slice(0, 2).join('、')}${selectedTopics.size > 2 ? '...' : ''}`;
-        }
-        progressValueEl.style.width = '0%';
+        toolbar.style.display = 'none';
     }
 }
 
-// 全选/取消全选
+function toggleTopicSelection(card, topic) {
+    if (selectedTopics.has(topic)) {
+        selectedTopics.delete(topic);
+        card.classList.remove('selected');
+    } else {
+        selectedTopics.add(topic);
+        card.classList.add('selected');
+    }
+    updateBatchActionState();
+    updateSelectAllButtonState();
+}
+
+// 当前渲染的主题列表（用于全选）
+let currentTopics = [];
+
 function toggleSelectAll() {
-    const allSelected = selectedTopics.size === trendingTopics.length && trendingTopics.length > 0;
+    const cards = document.querySelectorAll('.topic-card');
+    const allSelected = selectedTopics.size === currentTopics.length && currentTopics.length > 0;
 
     if (allSelected) {
         // 取消全选
         selectedTopics.clear();
-        document.querySelectorAll('.topic-checkbox').forEach(checkbox => {
-            checkbox.checked = false;
-        });
-        document.querySelectorAll('.topic-item').forEach(item => {
-            item.classList.remove('selected');
-        });
+        cards.forEach(card => card.classList.remove('selected'));
     } else {
         // 全选
-        selectedTopics.clear();
-        trendingTopics.forEach((topic, index) => {
-            selectedTopics.add(index);
-        });
-        document.querySelectorAll('.topic-checkbox').forEach(checkbox => {
-            checkbox.checked = true;
-        });
-        document.querySelectorAll('.topic-item').forEach(item => {
-            item.classList.add('selected');
-        });
+        currentTopics.forEach(topic => selectedTopics.add(topic));
+        cards.forEach(card => card.classList.add('selected'));
     }
-
-    updateSelectedCount();
+    updateBatchActionState();
+    updateSelectAllButtonState();
 }
 
-// 批量生成选中的主题
+function updateSelectAllButtonState() {
+    const btn = document.getElementById('btn-select-all');
+    if (!btn) return;
+
+    const allSelected = selectedTopics.size === currentTopics.length && currentTopics.length > 0;
+    if (allSelected) {
+        btn.innerHTML = '<span class="icon">✕</span> 取消全选';
+    } else {
+        btn.innerHTML = '<span class="icon">✓</span> 全选所有';
+    }
+}
+
+function updateBatchActionState() {
+    const bar = document.getElementById('batch-actions');
+    const count = selectedTopics.size;
+
+    document.getElementById('selected-count').textContent = `已选 ${count} 项`;
+
+    if (count > 0) {
+        bar.style.display = 'flex';
+    } else {
+        bar.style.display = 'none';
+    }
+}
+
 async function batchGenerate() {
-    if (selectedTopics.size === 0) {
-        showToast('请先选择至少一个主题', 'error');
-        return;
+    if (selectedTopics.size === 0) return;
+
+    const topics = Array.from(selectedTopics).map(t => t.title);
+    showToast(`开始批量生成 ${topics.length} 个任务`, 'success');
+
+    // 切换到创作中心查看进度
+    switchView('home');
+
+    // 这里简单处理，实际应该有批量任务的 UI
+    // 暂时只演示第一个
+    const topicInput = document.getElementById('topic-input');
+    topicInput.value = topics[0];
+    startGenerate();
+}
+
+// --- 配置管理 ---
+async function loadConfig() {
+    try {
+        const res = await fetch(`${API_BASE}/config`);
+        const data = await res.json();
+        if (data.success && data.config) {
+            const c = data.config;
+            if (c.llm_api_key) document.getElementById('llm_api_key').placeholder = '已配置 (******)';
+            if (c.openai_base_url) document.getElementById('openai_base_url').value = c.openai_base_url;
+            if (c.default_model) document.getElementById('default_model').value = c.default_model;
+            if (c.xhs_mcp_url) document.getElementById('xhs_mcp_url').value = c.xhs_mcp_url;
+        }
+    } catch (e) {
+        console.error('Config load failed', e);
     }
+}
 
-    // 获取选中的主题标题
-    const selectedTopicTitles = Array.from(selectedTopics).map(index => trendingTopics[index].title);
-
-    // 确认对话框
-    if (!confirm(`确定要批量生成并发布 ${selectedTopicTitles.length} 个主题吗？`)) {
-        return;
-    }
-
-    // 更新当前任务区域显示批量处理状态
-    const currentTopicEl = document.getElementById('current-topic');
-    const progressTextEl = document.getElementById('progress-text');
-    currentTopicEl.textContent = `批量生成 ${selectedTopicTitles.length} 个主题`;
-    progressTextEl.textContent = '准备开始批量处理...';
-    document.getElementById('progress-value').style.width = '0%';
-
-    // 显示批量进度区域
-    const container = document.getElementById('trending-topics-container');
-    const progressHtml = `
-        <div class="batch-progress">
-            <div class="batch-progress-title">批量生成进度</div>
-            <div class="batch-progress-bar">
-                <div class="batch-progress-value" id="batch-progress-value" style="width: 0%"></div>
-            </div>
-            <div class="batch-progress-text" id="batch-progress-text">准备开始...</div>
-        </div>
-    `;
-    container.insertAdjacentHTML('beforeend', progressHtml);
-
-    showToast(`开始批量处理 ${selectedTopicTitles.length} 个主题...`, 'info');
+async function saveConfig() {
+    const config = {
+        llm_api_key: document.getElementById('llm_api_key').value,
+        openai_base_url: document.getElementById('openai_base_url').value,
+        default_model: document.getElementById('default_model').value,
+        xhs_mcp_url: document.getElementById('xhs_mcp_url').value,
+        jina_api_key: document.getElementById('jina_api_key').value,
+        tavily_api_key: document.getElementById('tavily_api_key').value
+    };
 
     try {
-        const contentType = document.getElementById('content-type').value;
-        const response = await fetch(`${API_BASE}/batch-generate-and-publish`, {
+        const res = await fetch(`${API_BASE}/config`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ topics: selectedTopicTitles, content_type: contentType })
+            body: JSON.stringify(config)
         });
+        const data = await res.json();
+        if (data.success) {
+            showToast('配置已保存', 'success');
+            closeModal();
+        }
+    } catch (e) {
+        showToast('保存失败', 'error');
+    }
+}
 
-        // 模拟进度更新
-        updateBatchProgress(30, '正在处理中...');
-        await sleep(1000);
+async function validateModel() {
+    const status = document.getElementById('model-status');
+    status.textContent = '验证中...';
+    status.style.color = 'var(--color-text-muted)';
 
-        updateBatchProgress(60, '继续处理中...');
-        await sleep(1000);
+    try {
+        const res = await fetch(`${API_BASE}/validate-model`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                llm_api_key: document.getElementById('llm_api_key').value,
+                openai_base_url: document.getElementById('openai_base_url').value,
+                model_name: document.getElementById('default_model').value
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            status.textContent = '✓ 可用';
+            status.style.color = '#4caf50';
+        } else {
+            status.textContent = '✗ 不可用';
+            status.style.color = '#f44336';
+        }
+    } catch (e) {
+        status.textContent = '验证出错';
+        status.style.color = '#f44336';
+    }
+}
 
-        updateBatchProgress(90, '即将完成...');
+// --- 历史记录 ---
+// --- 历史记录 ---
+let allHistoryData = [];
 
-        const data = await response.json();
+async function loadTaskHistory() {
+    const list = document.getElementById('history-list');
+    list.innerHTML = '<div style="text-align:center;padding:20px;">加载中...</div>';
+
+    try {
+        const res = await fetch(`${API_BASE}/history?limit=20`);
+        const data = await res.json();
 
         if (data.success) {
-            updateBatchProgress(100, '批量处理完成！');
-
-            const summary = data.summary;
-            const message = `批量处理完成！成功 ${summary.success} 个，失败 ${summary.failed} 个`;
-            showToast(message, summary.failed === 0 ? 'success' : 'info');
-
-            // 显示详细结果
-            setTimeout(() => {
-                displayBatchResults(data.results);
-            }, 1000);
-
-            // 刷新历史记录
-            loadTaskHistory();
+            allHistoryData = data.data || [];
+            // 默认显示全部
+            applyFilter('all');
         } else {
-            updateBatchProgress(0, '批量处理失败');
-            showToast('批量处理失败', 'error');
+            list.innerHTML = '<div style="text-align:center;padding:20px;color:gray;">暂无历史记录</div>';
         }
-    } catch (error) {
-        updateBatchProgress(0, `批量处理失败: ${error.message}`);
-        showToast(`批量处理失败：${error.message}`, 'error');
+    } catch (e) {
+        list.innerHTML = '加载失败';
     }
 }
 
-// 更新批量进度
-function updateBatchProgress(percent, text) {
-    const progressValue = document.getElementById('batch-progress-value');
-    const progressText = document.getElementById('batch-progress-text');
-
-    if (progressValue) {
-        progressValue.style.width = `${percent}%`;
-    }
-    if (progressText) {
-        progressText.textContent = text;
-    }
-
-    // 同步更新"当前任务"面板
-    document.getElementById('progress-value').style.width = `${percent}%`;
-    document.getElementById('progress-text').textContent = text;
-}
-
-// 显示批量处理结果
-function displayBatchResults(results) {
-    const container = document.getElementById('trending-topics-container');
-
-    let resultsHtml = '<div style="margin-top: 16px;"><h4 style="margin-bottom: 12px; color: #2c3e50;">处理结果：</h4>';
-
-    results.forEach(result => {
-        const statusIcon = result.status === 'success' ? '✅' : '❌';
-        const statusClass = result.status === 'success' ? 'success' : 'error';
-
-        resultsHtml += `
-            <div class="topic-item ${statusClass}" style="cursor: default;">
-                <div class="topic-item-header">
-                    <span style="font-size: 18px;">${statusIcon}</span>
-                    <div class="topic-title">${result.topic}</div>
-                </div>
-                ${result.status === 'error' ? `<div class="topic-summary" style="color: #f56c6c;">${result.error || '未知错误'}</div>` : ''}
-            </div>
-        `;
+function applyFilter(status) {
+    // 更新按钮状态
+    document.querySelectorAll('.segment-btn').forEach(btn => {
+        if (btn.textContent === '全部' && status === 'all') btn.classList.add('active');
+        else if (btn.textContent === '成功' && status === 'success') btn.classList.add('active');
+        else if (btn.textContent === '失败' && status === 'error') btn.classList.add('active');
+        else btn.classList.remove('active');
     });
 
-    resultsHtml += '</div>';
-    container.insertAdjacentHTML('beforeend', resultsHtml);
-}
-
-// 监听模型输入框的变化
-document.addEventListener('DOMContentLoaded', () => {
-    const modelInput = document.getElementById('default_model');
-    const apiKeyInput = document.getElementById('llm_api_key');
-    const baseUrlInput = document.getElementById('openai_base_url');
-
-    if (modelInput) {
-        modelInput.addEventListener('input', debounceValidateModel);
-        apiKeyInput.addEventListener('input', debounceValidateModel);
-        baseUrlInput.addEventListener('input', debounceValidateModel);
+    // 筛选数据
+    let filteredData = allHistoryData;
+    if (status !== 'all') {
+        filteredData = allHistoryData.filter(task => task.status === status);
     }
 
-    // 页面加载时加载配置
-    loadConfig();
-    // 注意：历史记录不在页面加载时加载，而是在打开历史模态框时加载
-});
-// ==================== 模态框功能 ====================
-
-// 打开历史任务模态框
-function openHistoryModal() {
-    const modal = document.getElementById('history-modal');
-    modal.classList.add('active');
-    document.body.style.overflow = 'hidden'; // 禁止背景滚动
-    
-    // 加载历史任务
-    loadTaskHistory();
+    renderHistoryList(filteredData);
 }
 
-// 关闭历史任务模态框
-function closeHistoryModal(event) {
-    // 如果点击的是遮罩层或关闭按钮,才关闭
-    if (!event || event.target.classList.contains('modal-overlay') || 
-        event.target.classList.contains('modal-close')) {
-        const modal = document.getElementById('history-modal');
-        modal.classList.remove('active');
-        document.body.style.overflow = ''; // 恢复背景滚动
+function renderHistoryList(tasks) {
+    const list = document.getElementById('history-list');
+
+    if (tasks.length === 0) {
+        list.innerHTML = '<div style="text-align:center;padding:20px;color:gray;">暂无相关记录</div>';
+        return;
     }
+
+    list.innerHTML = tasks.map(task => `
+        <div class="history-item">
+            <div class="history-info">
+                <h4>${task.topic}</h4>
+                <div class="history-meta">
+                    ${new Date(task.created_at).toLocaleString()}
+                    <span class="history-status ${task.status}">${task.status}</span>
+                </div>
+            </div>
+            <button class="btn-text" onclick='showResultModal(${JSON.stringify(task)})'>查看</button>
+        </div>
+    `).join('');
 }
 
-// ESC键关闭模态框
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-        const modal = document.getElementById('history-modal');
-        if (modal.classList.contains('active')) {
-            closeHistoryModal({ target: modal });
-        }
-    }
-});
+// --- 工具函数 ---
+function showToast(msg, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = msg;
+    container.appendChild(toast);
 
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}

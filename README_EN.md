@@ -7,8 +7,10 @@ An AI-powered intelligent Xiaohongshu (Little Red Book) content generation and a
 In simple terms: Input a topic and AI handles everything for you, publishing directly to your Xiaohongshu account
 
 System main interface:
-![img.png](pages/img.png)
-![img.png](pages/img2.png)
+![alt text](pages/image-1.png)
+![alt text](pages/image.png)
+![alt text](pages/image-3.png)
+![alt text](pages/image-2.png)
 
 ## ✨ Features
 
@@ -98,67 +100,54 @@ Recommend using Tavily as the search tool, which offers 1000 free search request
 > 💡 **Tip**: Click the "Get Key" or "View Documentation" links next to configuration items to jump directly to the corresponding service websites.
 
 
-### 4. Generate Content
+### 4. Content Generation
 
-The system provides two content generation methods:
+The system features a brand new immersive dual-view design:
 
-#### Method 1: Manual Topic Input
+#### Method 1: Creation Center (Home View)
 
-1. Input a topic in the "Content Generation & Publishing" area
-2. Click the "🚀 Start Generation & Publishing" button
-3. View execution progress and final results on the right side
+This is the default view, focused on deep creation of a single topic.
 
-**Topic Examples:**
-- "ByteDance's Doubao Model: Daily API calls exceed 30 trillion tokens, with impressive growth!"
-![img.png](pages/img2.png)
-- "Transformer Architecture Explained"
-![img.png](pages/img_3.png)
+1. **Input Topic**: Enter the topic you want to create in the input box below "What will you create today?" in the center of the screen.
+2. **Start Generation**: Click the "✨ Generate" button on the right.
+3. **Real-time Status**:
+   - A "Current Task Status Card" will automatically pop up below the input box.
+   - You can see the steps AI is performing (Retrieving Data -> Writing Article -> Formatting -> Auto Publishing).
+   - The progress bar updates in real-time to show the current execution percentage.
 
-#### Method 2: Trending Topics Auto-Generation (Recommended)
+**Topic Example:**
+- "Analysis of the Priority Paradox of Generative AI"
+![alt text](pages/image-4.png)
 
-The system provides an intelligent trending topics feature to help you quickly find quality content ideas:
+#### Method 2: Trending Discovery (Trending View)
 
-##### 1. Fetch Trending Topics by Domain
+Click the "🔥 Trending" icon in the left sidebar to enter this view, suitable for finding inspiration and batch production.
 
-In the "Today's Trending Topics" panel, click domain tags to quickly fetch popular topics in that field:
+##### 1. Get Trending Topics by Domain
+At the top of the page, click the glassmorphism-style domain tabs to quickly get trending topics in that field:
+- 🤖 **AI** - Frontier dynamics of AI and Large Models
+- 💰 **Funding** - Latest financing news in the venture capital circle
+- 📄 **Papers** - Latest research results in academia
+- 🦾 **Robotics** - Embodied intelligence and automation technology
 
-- 🤖 **AI** - Artificial intelligence, large models, machine learning related trends
-- 💰 **Funding** - Investment and financing news, startup company updates
-- 📄 **Papers** - Latest research papers, academic progress
-- 🦾 **Robotics** - Robotics technology, automation related
+##### 2. Extract from Web Link
+If you have a specific article link:
+1. Paste the URL into the "Or paste web link to extract topics..." input box.
+2. Click the "Extract" button, and the system will intelligently analyze the web content and refine core topics.
 
-The system will automatically call web search tools to retrieve the 10 hottest news topics in that field from the past 24 hours.
+##### 3. Batch Generation & Publishing
+After getting topic cards:
+1. **Select Topics**: Click on topic cards you are interested in (cards will highlight and show a ✓ mark).
+2. **Select All**: Click the "✓ Select All" button above the list to select all current topics with one click.
+3. **Batch Execution**:
+   - A "Batch Action Bar" will automatically float at the bottom, showing the selected count.
+   - Click the "🚀 Batch Generate Selected Topics" button.
+   - The system will automatically create a task queue and process the generation and publishing of each topic in sequence.
 
-##### 2. Extract Topics from Webpage Links
-
-If you find a quality article or report, you can:
-
-1. Paste the URL in the "Or input webpage link to extract topics" input box
-2. Click the "🔍 Extract Topics" button
-3. The system will automatically crawl the webpage content and intelligently extract the 10 most valuable topics
-
-##### 3. Select Topics for Batch Generation
-
-After fetching trending topics:
-
-1. **Single/Multiple Selection** - Check the topics you're interested in (each topic includes title and summary)
-2. **Select All Function** - Click "✓ Select All" button to quickly select all topics
-3. **View Selection Count** - The page displays "Selected X topics" in real-time
-4. **Batch Generate** - Click "🚀 Batch Generate Selected Topics" button
-5. **View Results** - The system will generate and publish each topic sequentially, showing success/failure statistics
-
-##### 4. Real-time Progress Tracking
-
-- Selected topics automatically sync to the "Current Task" panel
-- Batch generation shows overall progress bar and detailed status
-- Each topic's generation result is saved in "Task History"
-- Failed tasks can be retried by clicking the "🔄 Retry" button
-
-**Usage Tips:**
-- Recommend using domain tags to quickly fetch daily trending topics first
-- When batch generating, suggest selecting 3-5 topics at a time to avoid excessive duration
-- You can view all generated content details in the history records
-- Support filtering historical tasks by date and status
+#### Task History & Management
+Click the "📝 History" icon in the left sidebar to open the history modal:
+- **View Details**: Click the "View" button of any task to preview the complete generated Xiaohongshu copy (title, content, tags) and images.
+- **Status Filter**: Use the segmented control at the top (All/Success/Failed) to quickly filter task status.
 
 
 ## 📂 Project Structure

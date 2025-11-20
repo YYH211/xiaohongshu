@@ -32,7 +32,7 @@
 
 这是我自己运营的账号，全部由这个项目写出来的文章
 
-![img_1.png](pages/img_1.png)
+![alt text](pages/image-5.png)
 
 [个人主页](https://www.xiaohongshu.com/user/profile/60857eed0000000001008826)欢迎查看，点点关注，带你获取一手的 AI 资源
 

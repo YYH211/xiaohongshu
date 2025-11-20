@@ -31,7 +31,7 @@ System main interface:
 
 This is my personal account, all articles are written by this project
 
-![img_1.png](pages/img_1.png)
+![alt text](pages/image-5.png)
 
 [Personal Homepage](https://www.xiaohongshu.com/user/profile/60857eed0000000001008826) Welcome to visit, follow me for first-hand AI resources
 
